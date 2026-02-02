@@ -1,0 +1,99 @@
+# Terraform
+.terraform/
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+plan.out
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform variables (sensitive data)
+*.tfvars.json
+*.tfvars.secret
+*.tfvars  # Uncomment if you want to exclude all tfvars files
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+env/
+.venv/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.sublime-project
+.sublime-workspace
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.editorconfig
+
+# Logs
+*.log
+logs/
+crash.log
+crash.*.log
+
+# Build artifacts
+target/
+dist/
+build/
+*.jar
+*.war
+*.ear
+*.zip
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Node (if used)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Misc
+*.o
+*.a
+*.so
+*.dylib
+.env
+.env.local
+*.pem
+*.key
+*.crt
+
+# Google Cloud
+google-cloud-key.json
+service-account-key.json
+
+# Dataflow
+staging/
+temp/
