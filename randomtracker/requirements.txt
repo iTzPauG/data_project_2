@@ -3,3 +3,4 @@ networkx>=3.0
 folium>=0.14.0
 flask>=2.0.0
 shapely>=2.0.0
+google-cloud-pubsub>=2.0.0

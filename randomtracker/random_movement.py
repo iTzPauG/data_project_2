@@ -3,7 +3,8 @@
 Random Person Movement Generator
 Generates realistic random person movements along actual roads using OpenStreetMap data.
 """
-
+from google.cloud import pubsub_v1
+import argparse
 import osmnx as ox
 import networkx as nx
 import random
@@ -17,8 +18,8 @@ from shapely.geometry import Point
 
 class PersonMovementGenerator:
     """Generates random person movements on real road networks."""
-    
-    def __init__(self, place_name=None, center_point=None, distance=1000):
+    # Modificamos el init para aceptar el proyecto y el tópico
+    def __init__(self, place_name=None, center_point=None, distance=1000, project_id=None, topic_id=None):
         """
         Initialize the movement generator.
         
@@ -48,10 +49,41 @@ class PersonMovementGenerator:
         
         # Note: Building data will be queried on-demand per location due to data size
         self.buildings_cache = {}  # Cache for buildings near each location
+
+        self.publisher = None
+        self.topic_path = None
+
+        # Si nos han pasado los IDs, configuramos el cliente de Pub/Sub
+        if project_id and topic_id:
+            try:
+                # Creamos el cliente real
+                self.publisher = pubsub_v1.PublisherClient()
+                # Creamos la ruta completa "projects/X/topics/Y"
+                self.topic_path = self.publisher.topic_path(project_id, topic_id)
+                print(f"Conectado a Pub/Sub: {self.topic_path}")
+            except Exception as e:
+                print(f"Error conectando a Pub/Sub: {e}")
     
     def get_random_node(self):
         """Get a random node from the street network."""
         return random.choice(self.nodes)
+    
+    def publish_position(self, position):
+        """Publica la posición actual al tópico de Pub/Sub."""
+        if not self.publisher or not self.topic_path:
+            return
+
+        try:
+            # 1. Convertir el diccionario a JSON String
+            message_json = json.dumps(position)
+            
+            # 2. Convertir el String a Bytes (Pub/Sub requiere bytes)
+            message_bytes = message_json.encode('utf-8')
+            
+            future = self.publisher.publish(self.topic_path, message_bytes)
+            
+        except Exception as e:
+            print(f"⚠️ Error publicando en Pub/Sub: {e}")
     
     def get_closest_building(self, lat, lon):
         """Find the closest public building to a given position by querying nearby area."""
@@ -283,7 +315,9 @@ class PersonMovementGenerator:
             else:
                 line = f"{position['user_id']},{position['latitude']},{position['longitude']},{position.get('node_id', '')},{position.get('street_name', '')},{position.get('road_type', '')},{position.get('poi_name', '')},{position.get('poi_type', '')}\n"
             f.write(line)
-    
+
+
+
     def generate_continuous_movement(self, output_file='live_tracking.csv', 
                                      interval_seconds=10, speed_mps=1.4, user_id=None):
         """
@@ -397,7 +431,13 @@ class PersonMovementGenerator:
                     'poi_name': poi_name,
                     'poi_type': poi_type
                 }
+
+                # 1. Escribir en CSV (Local)
                 self.write_element(position, output_file)
+
+                # 2. Escribir en Pub/Sub (Nube) <--- NUEVA LÍNEA
+                self.publish_position(position)
+
                 points_written += 1
                 
                 print(f"[{current_time.strftime('%H:%M:%S')}] Point {points_written}: "
@@ -541,6 +581,9 @@ class PersonMovementGenerator:
                 
                 with lock:
                     self.write_element(position, output_file)
+
+                # Publish to Pub/Sub (THREAD SAFE, no necesita lock)
+                self.publish_position(position)
                 
                 points_written += 1
                 
@@ -580,60 +623,30 @@ class PersonMovementGenerator:
 def main():
     """Example usage of the PersonMovementGenerator."""
     
-    # Parse command line arguments
-    num_users = 1
-    interval_seconds = 2
-    speed_mps = 1.4
+    # 1. Configuración de Argumentos (Sustituye al bucle while manual)
+    parser = argparse.ArgumentParser(description="Random Person Movement Tracker")
     
-    i = 1
-    while i < len(sys.argv):
-        if sys.argv[i] in ['--users', '-u']:
-            try:
-                num_users = int(sys.argv[i + 1])
-                if num_users < 1 or num_users > 100:
-                    print("Error: Number of users must be between 1 and 100")
-                    sys.exit(1)
-                i += 2
-            except (IndexError, ValueError):
-                print("Error: --users requires a number between 1 and 100")
-                sys.exit(1)
-        elif sys.argv[i] in ['--time', '-t']:
-            try:
-                interval_seconds = float(sys.argv[i + 1])
-                if interval_seconds < 0.1 or interval_seconds > 60:
-                    print("Error: Time interval must be between 0.1 and 60 seconds")
-                    sys.exit(1)
-                i += 2
-            except (IndexError, ValueError):
-                print("Error: --time requires a number between 0.1 and 60")
-                sys.exit(1)
-        elif sys.argv[i] in ['--speed', '-s']:
-            try:
-                speed_mps = float(sys.argv[i + 1])
-                if speed_mps < 0.1 or speed_mps > 50:
-                    print("Error: Speed must be between 0.1 and 50 m/s")
-                    sys.exit(1)
-                i += 2
-            except (IndexError, ValueError):
-                print("Error: --speed requires a number between 0.1 and 50")
-                sys.exit(1)
-        elif sys.argv[i] in ['--help', '-h']:
-            print("Usage: python random_movement.py [options]")
-            print("")
-            print("Options:")
-            print("  --users, -u <number>    Number of concurrent users (1-100, default: 1)")
-            print("  --time, -t <seconds>    Time interval between updates (0.1-60, default: 2)")
-            print("  --speed, -s <m/s>       Movement speed in meters/second (0.1-50, default: 1.4)")
-            print("")
-            print("Examples:")
-            print("  python random_movement.py --users 5")
-            print("  python random_movement.py --users 10 --time 1 --speed 2.0")
-            print("  python random_movement.py -u 3 -t 5 -s 1.5")
-            sys.exit(0)
-        else:
-            print(f"Error: Unknown argument '{sys.argv[i]}'")
-            print("Use --help for usage information")
-            sys.exit(1)
+    # Argumentos Obligatorios (Pub/Sub)
+    parser.add_argument("--project_id", required=True, help="Google Cloud Project ID")
+    parser.add_argument("--topic_id", required=True, help="Pub/Sub Topic ID")
+    
+    # Argumentos Opcionales (Simulación)
+    parser.add_argument("--users", "-u", type=int, default=1, help="Number of concurrent users (1-100)")
+    parser.add_argument("--time", "-t", type=float, default=2.0, help="Time interval between updates (0.1-60s)")
+    parser.add_argument("--speed", "-s", type=float, default=1.4, help="Movement speed in m/s (0.1-50)")
+
+    args = parser.parse_args()
+
+    # Validaciones de rango (Manteniendo tu lógica original)
+    if args.users < 1 or args.users > 100:
+        print("Error: --users must be between 1 and 100")
+        sys.exit(1)
+    if args.time < 0.1 or args.time > 60:
+        print("Error: --time must be between 0.1 and 60 seconds")
+        sys.exit(1)
+    if args.speed < 0.1 or args.speed > 50:
+        print("Error: --speed must be between 0.1 and 50 m/s")
+        sys.exit(1)
     
     print("=" * 60)
     print("Random Person Movement Tracker")
@@ -641,11 +654,17 @@ def main():
     
     # Initialize generator for Valencia, Spain
     print(f"\nInitializing movement generator for Valencia, Spain...")
-    print(f"Number of users: {num_users}")
-    print(f"Update interval: {interval_seconds} seconds")
-    print(f"Movement speed: {speed_mps} m/s ({speed_mps * 3.6:.1f} km/h)")
+    print(f"Project ID: {args.project_id}")
+    print(f"Topic ID: {args.topic_id}")
+    print(f"Number of users: {args.users}")
+    print(f"Update interval: {args.time} seconds")
+    print(f"Movement speed: {args.speed} m/s ({args.speed * 3.6:.1f} km/h)")
+    
+    # Instanciamos la clase pasando los argumentos capturados
     generator = PersonMovementGenerator(
-        place_name="Valencia, Spain"
+        place_name="Valencia, Spain",
+        project_id=args.project_id,
+        topic_id=args.topic_id
     )
     
     # Run continuous tracking
@@ -653,18 +672,18 @@ def main():
     print("Starting continuous movement tracking")
     print("=" * 60)
     
-    if num_users == 1:
+    output_file = 'live_tracking.csv'
+    
+    if args.users == 1:
         # Single user mode
         generator.generate_continuous_movement(
-            output_file='live_tracking.csv',
-            interval_seconds=interval_seconds,
-            speed_mps=speed_mps
+            output_file=output_file,
+            interval_seconds=args.time,
+            speed_mps=args.speed
         )
     else:
         # Multi-user mode
-        output_file = 'live_tracking.csv'
-        
-        print(f"\nGenerating {num_users} users...")
+        print(f"\nGenerating {args.users} users...")
         print(f"Writing to: {output_file}")
         print("Press Ctrl+C to stop\n")
         
@@ -676,17 +695,17 @@ def main():
         threads = []
         lock = threading.Lock()
         
-        for user_id in range(1, num_users + 1):
+        for user_id in range(1, args.users + 1):
             thread = threading.Thread(
                 target=generator.generate_user_movement_thread,
-                args=(user_id, output_file, interval_seconds, speed_mps, lock),
+                args=(user_id, output_file, args.time, args.speed, lock),
                 daemon=True
             )
             thread.start()
             threads.append(thread)
             print(f"Started tracking for User {user_id}")
         
-        print(f"\nAll {num_users} users are now being tracked!\n")
+        print(f"\nAll {args.users} users are now being tracked!\n")
         
         try:
             # Keep main thread alive
