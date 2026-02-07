@@ -59,6 +59,12 @@ variable "firestore_metadata_collection" {
   default     = "metadata"
 }
 
+variable "firestore_zones_collection" {
+  description = "Firestore collection for restricted zones"
+  type        = string
+  default     = "zones"
+}
+
 # Dataflow Variables
 variable "dataflow_job_name" {
   description = "Dataflow job name"
