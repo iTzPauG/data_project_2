@@ -70,6 +70,28 @@ resource "google_pubsub_subscription" "processed_location_subscription" {
   }
 }
 
+# Forbidden or relevant locations topic (for Dataflow to publish forbidden/relevant locations)
+resource "google_pubsub_topic" "forbidden_relevant_location_data" {
+  name = var.forbidden_relevant_topic_name
+
+  labels = {
+    environment = var.environment
+    purpose     = "forbidden-relevant-data"
+  }
+}
+
+# Subscription for forbidden/relevant location data
+resource "google_pubsub_subscription" "forbidden_relevant_location_subscription" {
+  name                 = "${var.forbidden_relevant_topic_name}-subscription"
+  topic                = google_pubsub_topic.forbidden_relevant_location_data.name
+  ack_deadline_seconds = 60
+
+  labels = {
+    environment = var.environment
+    consumer    = "applications"
+  }
+}
+
 # Output topic names and subscription names for reference
 output "pubsub_topics" {
   description = "Pub/Sub topic names and their subscriptions"
@@ -85,6 +107,10 @@ output "pubsub_topics" {
     processed_location = {
       topic        = google_pubsub_topic.processed_location_data.name
       subscription = google_pubsub_subscription.processed_location_subscription.name
+    }
+    forbidden_relevant_location = {
+      topic        = google_pubsub_topic.forbidden_relevant_location_data.name
+      subscription = google_pubsub_subscription.forbidden_relevant_location_subscription.name
     }
   }
 }
