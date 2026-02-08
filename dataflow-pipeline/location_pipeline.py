@@ -192,37 +192,37 @@ def run(argv=None):
         required=True,
         help='Pub/Sub topic to read from'
     )
-    parser.add_argument(
-        '--output_notifications_topic',
-        required=True,
-        help='Pub/Sub topic for notifications'
-    )
-    parser.add_argument(
-        '--output_location_topic',
-        required=True,
-        help='Pub/Sub topic for processed locations'
-    )
-    parser.add_argument(
-        '--firestore_project',
-        required=True,
-        help='GCP project ID for Firestore'
-    )
-    parser.add_argument(
-        '--firestore_database',
-        required=True,
-        help='Firestore database name'
-    )
-    parser.add_argument(
-        '--firestore_collection',
-        required=True,
-        help='Firestore collection name for locations'
-    )
-    parser.add_argument(
-        '--window_duration',
-        type=int,
-        default=300,
-        help='Window duration in seconds'
-    )
+    # parser.add_argument(
+    #     '--output_notifications_topic',
+    #     required=True,
+    #     help='Pub/Sub topic for notifications'
+    # )
+    # parser.add_argument(
+    #     '--output_location_topic',
+    #     required=True,
+    #     help='Pub/Sub topic for processed locations'
+    # )
+    # parser.add_argument(
+    #     '--firestore_project',
+    #     required=True,
+    #     help='GCP project ID for Firestore'
+    # )
+    # parser.add_argument(
+    #     '--firestore_database',
+    #     required=True,
+    #     help='Firestore database name'
+    # )
+    # parser.add_argument(
+    #     '--firestore_collection',
+    #     required=True,
+    #     help='Firestore collection name for locations'
+    # )
+    # parser.add_argument(
+    #     '--window_duration',
+    #     type=int,
+    #     default=300,
+    #     help='Window duration in seconds'
+    # )
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
@@ -235,64 +235,65 @@ def run(argv=None):
         messages = (
             pipeline
             | 'Read from Pub/Sub' >> ReadFromPubSub(topic=known_args.input_topic)
+            | beam.Map(print)
         )
 
-        # Parse JSON to LocationData
-        locations = (
-            messages
-            | 'Parse Location Data' >> beam.ParDo(ParseLocationDataFn())
-        )
+        # # Parse JSON to LocationData
+        # locations = (
+        #     messages
+        #     | 'Parse Location Data' >> beam.ParDo(ParseLocationDataFn())
+        # )
 
-        # Process locations and prepare notifications
-        processed = (
-            locations
-            | 'Process Locations' >> beam.ParDo(
-                ProcessLocationFn(
-                    firestore_project=known_args.firestore_project,
-                    firestore_database=known_args.firestore_database,
-                    firestore_collection=known_args.firestore_collection
-                )
-            )
-        )
+        # # Process locations and prepare notifications
+        # processed = (
+        #     locations
+        #     | 'Process Locations' >> beam.ParDo(
+        #         ProcessLocationFn(
+        #             firestore_project=known_args.firestore_project,
+        #             firestore_database=known_args.firestore_database,
+        #             firestore_collection=known_args.firestore_collection
+        #         )
+        #     )
+        # )
 
-        # Extract locations and notifications from processed tuple
-        location_and_notification = (
-            processed
-            | 'Extract Location & Notification' >> beam.Map(lambda x: x)
-        )
+        # # Extract locations and notifications from processed tuple
+        # location_and_notification = (
+        #     processed
+        #     | 'Extract Location & Notification' >> beam.Map(lambda x: x)
+        # )
 
-        # Save to Firestore
-        (
-            location_and_notification
-            | 'Extract Location' >> beam.Map(lambda x: x[0])
-            | 'Save to Firestore' >> beam.ParDo(
-                SaveToFirestoreFn(
-                    project=known_args.firestore_project,
-                    database=known_args.firestore_database,
-                    collection=known_args.firestore_collection
-                )
-            )
-            | 'Discard Firestore results' >> beam.Map(lambda x: None)
-        )
+        # # Save to Firestore
+        # (
+        #     location_and_notification
+        #     | 'Extract Location' >> beam.Map(lambda x: x[0])
+        #     | 'Save to Firestore' >> beam.ParDo(
+        #         SaveToFirestoreFn(
+        #             project=known_args.firestore_project,
+        #             database=known_args.firestore_database,
+        #             collection=known_args.firestore_collection
+        #         )
+        #     )
+        #     | 'Discard Firestore results' >> beam.Map(lambda x: None)
+        # )
 
-        # Publish notifications
-        (
-            location_and_notification
-            | 'Extract Notification' >> beam.Map(lambda x: x[1])
-            | 'Publish Notifications' >> WriteStringsToPubSub(
-                topic=known_args.output_notifications_topic
-            )
-        )
+        # # Publish notifications
+        # (
+        #     location_and_notification
+        #     | 'Extract Notification' >> beam.Map(lambda x: x[1])
+        #     | 'Publish Notifications' >> WriteStringsToPubSub(
+        #         topic=known_args.output_notifications_topic
+        #     )
+        # )
 
-        # Publish processed locations
-        (
-            location_and_notification
-            | 'Extract Location for output' >> beam.Map(lambda x: x[0])
-            | 'Format for output' >> beam.Map(lambda loc: loc.to_json())
-            | 'Publish Locations' >> WriteStringsToPubSub(
-                topic=known_args.output_location_topic
-            )
-        )
+        # # Publish processed locations
+        # (
+        #     location_and_notification
+        #     | 'Extract Location for output' >> beam.Map(lambda x: x[0])
+        #     | 'Format for output' >> beam.Map(lambda loc: loc.to_json())
+        #     | 'Publish Locations' >> WriteStringsToPubSub(
+        #         topic=known_args.output_location_topic
+        #     )
+        # )
 
 
 if __name__ == '__main__':
