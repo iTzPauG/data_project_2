@@ -110,7 +110,7 @@ class ProcessLocationFn(beam.DoFn):
     DEFAULT_RADIUS = 50  # meters
 
     def __init__(self, firestore_project: str, firestore_database: str,
-                 firestore_collection: str, zones_collection: str):
+        firestore_collection: str, zones_collection: str):
         self.firestore_project = firestore_project
         self.firestore_database = firestore_database
         self.firestore_collection = firestore_collection
