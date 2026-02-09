@@ -104,13 +104,15 @@ setup_python() {
 
     cd dataflow-pipeline
 
-    # Create virtual environment
-    python3 -m venv venv
-    source venv/bin/activate
+    # Create conda env with Python 3.11 if it doesn't exist
+    if ! conda env list | grep -q "py311-beam"; then
+        echo "Creating conda env py311-beam with Python 3.11..."
+        conda create -n py311-beam python=3.11 -y
+    fi
 
-    # Install dependencies
-    pip install --upgrade pip
-    pip install -r requirements.txt
+    # Install dependencies using conda run (avoids conda init issues in scripts)
+    conda run -n py311-beam pip install --upgrade pip
+    conda run -n py311-beam pip install -r requirements.txt
 
     if [ $? -ne 0 ]; then
         echo -e "${RED}Python setup failed${NC}"
@@ -159,19 +161,40 @@ deploy_dataflow() {
         SERVICE_ACCOUNT=$(cd terraform && terraform output -raw dataflow_service_account_email)
         FIRESTORE_DATABASE=$(cd terraform && terraform output -raw firestore_database_name)
 
-        gcloud dataflow jobs run location-streaming-pipeline \
-            --region europe-southwest1 \
-            --staging-location "gs://$STAGING_BUCKET/staging" \
-            --temp-location "gs://$TEMP_BUCKET" \
-            --service-account-email "$SERVICE_ACCOUNT" \
-            --python-requirements "gs://$STAGING_BUCKET/templates/requirements.txt" \
-            "gs://$STAGING_BUCKET/templates/location_pipeline.py" \
-            --input_topic "projects/$PROJECT_ID/topics/incoming-location-data" \
-            --output_notifications_topic "projects/$PROJECT_ID/topics/notifications" \
-            --output_location_topic "projects/$PROJECT_ID/topics/processed-location-data" \
-            --firestore_project "$PROJECT_ID" \
-            --firestore_database "$FIRESTORE_DATABASE" \
-            --firestore_collection "locations"
+        JOB_NAME="location-streaming-pipeline"
+        UPDATE_FLAG=""
+
+        # Check if a job with this name is already running
+        EXISTING_JOB=$(gcloud dataflow jobs list \
+            --region=europe-southwest1 \
+            --project="$PROJECT_ID" \
+            --status=active \
+            --filter="name=$JOB_NAME" \
+            --format="value(id)" \
+            --limit=1 2>/dev/null)
+
+        if [ -n "$EXISTING_JOB" ]; then
+            echo -e "${YELLOW}Found existing job ($EXISTING_JOB). Will update in-place (redirect messages & stop old job).${NC}"
+            UPDATE_FLAG="--update"
+        fi
+
+        conda run -n py311-beam python dataflow-pipeline/location_pipeline.py \
+            --runner=DataflowRunner \
+            --project="$PROJECT_ID" \
+            --region=europe-southwest1 \
+            --job_name="$JOB_NAME" \
+            --staging_location="gs://$STAGING_BUCKET/staging" \
+            --temp_location="gs://$TEMP_BUCKET" \
+            --service_account_email="$SERVICE_ACCOUNT" \
+            --requirements_file=dataflow-pipeline/requirements.txt \
+            --streaming \
+            $UPDATE_FLAG \
+            --input_topic="projects/$PROJECT_ID/topics/incoming-location-data" \
+            --output_notifications_topic="projects/$PROJECT_ID/topics/notifications" \
+            --output_location_topic="projects/$PROJECT_ID/topics/processed-location-data" \
+            --firestore_project="$PROJECT_ID" \
+            --firestore_database="$FIRESTORE_DATABASE" \
+            --firestore_collection="locations"
 
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✓ Dataflow job submitted${NC}"
@@ -204,7 +227,7 @@ main() {
     echo "   gcloud dataflow jobs list --region=europe-southwest1"
     echo ""
     echo "2. Send test data to Pub/Sub:"
-    echo "   gcloud pubsub topics publish incoming-location-data --message '{\"latitude\": 40.7128, \"longitude\": -74.0060}'"
+    echo '   gcloud pubsub topics publish incoming-location-data --message "{\"user_id\": \"1\", \"latitude\": 40.7128, \"longitude\": -74.0060, \"timestamp\": \"$(date -u -Iseconds)\"}"'
     echo ""
     echo "3. Check Firestore data:"
     echo "   - Go to Google Cloud Console → Firestore"

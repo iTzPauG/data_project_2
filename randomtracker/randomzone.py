@@ -13,6 +13,7 @@ import time
 import sys
 import threading
 from shapely.geometry import Point
+from google.cloud import firestore
 
 
 class PersonMovementGenerator:
@@ -635,6 +636,25 @@ def main():
             print("Use --help for usage information")
             sys.exit(1)
     
+    # Parse additional arguments for Firestore
+    firestore_project = None
+    firestore_database = "location-db"
+    firestore_zones_collection = "zones"
+
+    i = 1
+    while i < len(sys.argv):
+        if sys.argv[i] == '--firestore-project':
+            firestore_project = sys.argv[i + 1]
+            i += 2
+        elif sys.argv[i] == '--firestore-database':
+            firestore_database = sys.argv[i + 1]
+            i += 2
+        elif sys.argv[i] == '--firestore-collection':
+            firestore_zones_collection = sys.argv[i + 1]
+            i += 2
+        else:
+            i += 1
+
     print("=" * 60)
     print("Random Node Coordinate Finder")
     print("=" * 60)

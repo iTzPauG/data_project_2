@@ -4,7 +4,10 @@
 *.tfstate
 *.tfstate.*
 *.tfplan
+tfplan
 plan.out
+*.tfvars.bak
+terraform-outputs.txt
 .terraformrc
 terraform.rc
 override.tf
