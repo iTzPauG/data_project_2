@@ -227,7 +227,7 @@ main() {
     echo "   gcloud dataflow jobs list --region=europe-southwest1"
     echo ""
     echo "2. Send test data to Pub/Sub:"
-    echo "   gcloud pubsub topics publish incoming-location-data --message '{\"latitude\": 40.7128, \"longitude\": -74.0060}'"
+    echo '   gcloud pubsub topics publish incoming-location-data --message "{\"user_id\": \"1\", \"latitude\": 40.7128, \"longitude\": -74.0060, \"timestamp\": \"$(date -u -Iseconds)\"}"'
     echo ""
     echo "3. Check Firestore data:"
     echo "   - Go to Google Cloud Console → Firestore"
