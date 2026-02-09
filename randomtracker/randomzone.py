@@ -664,37 +664,24 @@ def main():
     node_data = generator.graph.nodes[node]
     lat = node_data['y']
     lon = node_data['x']
-    radius = 50
+    radius = random.randint(20, 50)
+    timestamp = datetime.utcnow().isoformat() + 'Z'
     result = {
-        "node_id": node,
         "latitude": lat,
         "longitude": lon,
+        "timestamp": timestamp,
         "radius": radius
     }
-    # Write to JSON file
-    with open("random_node.json", "w") as f:
-        json.dump(result, f, indent=2)
-    # Print the JSON
-    print(json.dumps(result, indent=2))
 
-    # Save zone to Firestore
-    if firestore_project:
-        print(f"\nSaving zone to Firestore ({firestore_project}/{firestore_database}/{firestore_zones_collection})...")
-        db = firestore.Client(project=firestore_project, database=firestore_database)
-        zone_data = {
-            "latitude": lat,
-            "longitude": lon,
-            "radius": radius,
-            "node_id": node,
-            "created_at": datetime.now(),
-        }
-        doc_ref = db.collection(firestore_zones_collection).document()
-        doc_ref.set(zone_data)
-        print(f"Zone saved with ID: {doc_ref.id}")
-    else:
-        print("\nWarning: No --firestore-project specified, zone NOT saved to database.")
-        print("Usage: python randomzone.py --firestore-project <PROJECT_ID> [--firestore-database <DB>] [--firestore-collection <COLLECTION>]")
-
+    # Enviar a Pub/Sub forbidden/relevant topic
+    from google.cloud import pubsub_v1
+    project_id = "data-project-2-kids"  # Cambia si tu proyecto es diferente
+    topic_id = "forbidden-relevant-location-data"  # Debe coincidir con el nombre del topic
+    publisher = pubsub_v1.PublisherClient()
+    topic_path = publisher.topic_path(project_id, topic_id)
+    data = json.dumps(result).encode("utf-8")
+    future = publisher.publish(topic_path, data)
+    print(f"Mensaje publicado en {topic_path}: {result}")
     print("\nDone.")
     sys.exit(0)
 

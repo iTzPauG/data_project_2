@@ -40,6 +40,12 @@ variable "location_data_topic_name" {
   default     = "processed-location-data"
 }
 
+variable "forbidden_relevant_topic_name" {
+  description = "Name of the forbidden or relevant locations topic"
+  type        = string
+  default     = "forbidden-relevant-location-data"
+}
+
 # Firestore Variables
 variable "firestore_database_name" {
   description = "Firestore database name"
@@ -85,6 +91,31 @@ variable "dataflow_bucket_name" {
 }
 
 # Service Account Variables
+
+# Cloud SQL Variables
+variable "cloudsql_instance_name" {
+  description = "Cloud SQL instance name"
+  type        = string
+  default     = "main-cloudsql-instance"
+}
+
+variable "cloudsql_db_name" {
+  description = "Cloud SQL database name"
+  type        = string
+  default     = "appdb"
+}
+
+variable "cloudsql_user" {
+  description = "Cloud SQL user name"
+  type        = string
+  default     = "appuser"
+}
+
+variable "cloudsql_password" {
+  description = "Cloud SQL user password"
+  type        = string
+  sensitive   = true
+}
 variable "dataflow_service_account_name" {
   description = "Service account name for Dataflow"
   type        = string
