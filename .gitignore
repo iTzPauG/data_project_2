@@ -101,3 +101,5 @@ service-account-key.json
 # Dataflow
 staging/
 temp/
+
+randomtracker/cache/**

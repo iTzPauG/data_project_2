@@ -3,7 +3,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import FastAPI, HTTPException
 from google.cloud import pubsub_v1
@@ -30,7 +30,7 @@ def get_publisher():
 # --- Models ---
 
 class LocationRequest(BaseModel):
-    user_id: str
+    user_id: Union[str, int]
     latitude: float
     longitude: float
     timestamp: Optional[str] = None
@@ -51,6 +51,7 @@ class LocationRequest(BaseModel):
 
 
 class ZoneRequest(BaseModel):
+    user_id: Union[str, int]
     latitude: float
     longitude: float
     radius: float
@@ -86,7 +87,7 @@ def publish_location(data: LocationRequest):
         raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
 
     message = {
-        "user_id": data.user_id,
+        "user_id": str(data.user_id),
         "latitude": data.latitude,
         "longitude": data.longitude,
         "timestamp": data.timestamp or datetime.now().isoformat(),
@@ -105,6 +106,7 @@ def create_zone(data: ZoneRequest):
         raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
 
     message = {
+        "user_id": str(data.user_id),
         "latitude": data.latitude,
         "longitude": data.longitude,
         "radius": data.radius,
