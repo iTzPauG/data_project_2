@@ -1,0 +1,67 @@
+{
+  "name": "Location Streaming Pipeline",
+  "description": "Reads location data from Pub/Sub, checks zone matches, saves to Firestore, writes to BigQuery, and publishes to output topics.",
+  "parameters": [
+    {
+      "name": "input_topic",
+      "label": "Input Pub/Sub topic",
+      "helpText": "Full Pub/Sub topic path for incoming location data (projects/<project>/topics/<topic>).",
+      "isOptional": false
+    },
+    {
+      "name": "output_notifications_topic",
+      "label": "Notifications Pub/Sub topic",
+      "helpText": "Full Pub/Sub topic path for zone match notifications.",
+      "isOptional": false
+    },
+    {
+      "name": "output_location_topic",
+      "label": "Processed location Pub/Sub topic",
+      "helpText": "Full Pub/Sub topic path for processed location data.",
+      "isOptional": false
+    },
+    {
+      "name": "firestore_project",
+      "label": "Firestore project ID",
+      "helpText": "GCP project ID where Firestore resides.",
+      "isOptional": false
+    },
+    {
+      "name": "firestore_database",
+      "label": "Firestore database name",
+      "helpText": "Firestore database name.",
+      "isOptional": false
+    },
+    {
+      "name": "firestore_collection",
+      "label": "Firestore collection for locations",
+      "helpText": "Firestore collection to store last user locations.",
+      "isOptional": false
+    },
+    {
+      "name": "zones_collection",
+      "label": "Firestore zones collection",
+      "helpText": "Firestore collection for restricted zones.",
+      "isOptional": true,
+      "defaultValue": "zones"
+    },
+    {
+      "name": "bq_project",
+      "label": "BigQuery project ID",
+      "helpText": "GCP project ID for BigQuery.",
+      "isOptional": false
+    },
+    {
+      "name": "bq_dataset",
+      "label": "BigQuery dataset ID",
+      "helpText": "BigQuery dataset ID for location history.",
+      "isOptional": false
+    },
+    {
+      "name": "bq_table",
+      "label": "BigQuery table name",
+      "helpText": "BigQuery table name for location history.",
+      "isOptional": false
+    }
+  ]
+}
