@@ -1,6 +1,6 @@
 # Replace with your actual GCP project ID
 gcp_project_id = "data-project-2-kids"
-gcp_region     = "europe-southwest1"
+gcp_region     = "europe-west6"
 
 environment = "prod"
 
