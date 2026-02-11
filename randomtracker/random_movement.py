@@ -67,13 +67,9 @@ class PersonMovementGenerator:
             return
 
         try:
-            # 1. Convertir el diccionario a JSON String
             message_json = json.dumps(position)
             print(message_json)
-            # 2. Convertir el String a Bytes (Pub/Sub requiere bytes)
-            message_bytes = message_json.encode('utf-8')
-            # 3. Publicar a PubSub a través de la API
-            response = requests.post(self.api_url, json=message_bytes, timeout=2)
+            response = requests.post(self.api_url, json=position, timeout=2)
             
         except Exception as e:
             print(f"⚠️ Error publicando en Pub/Sub: {e}")
@@ -325,6 +321,7 @@ class PersonMovementGenerator:
         """
         if user_id is None:
             user_id = random.randint(1, 100)
+            user_id = str(user_id)
         
         print(f"Starting continuous tracking...")
         print(f"User ID: {user_id}")
@@ -627,16 +624,6 @@ def main():
     if args.speed < 0.1 or args.speed > 50:
         print("Error: --speed must be between 0.1 and 50 m/s")
         sys.exit(1)
-
-    # 2. LÓGICA DE PRIORIDAD (Consola > Variable de Entorno)
-    api_target = args.api_url or os.getenv("API_URL")
-
-    # 3. VALIDACIÓN: Si no está en ninguno de los dos sitios, error.
-    if not api_target:
-        print("❌ Error: Debes especificar la URL de la API mediante el argumento --api_url o la variable de entorno API_URL")
-        sys.exit(1)
-
-    print(f"📡 API Target: {api_target}")
     
     print("=" * 60)
     print("Random Person Movement Tracker")
@@ -651,7 +638,7 @@ def main():
     # Instanciamos la clase pasando los argumentos capturados
     generator = PersonMovementGenerator(
         place_name="Valencia, Spain",
-        api_url=api_target
+        api_url=API_URL
     )
     
     # Run continuous tracking
