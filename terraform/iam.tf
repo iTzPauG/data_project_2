@@ -24,6 +24,12 @@ resource "google_project_service" "storage" {
   disable_on_destroy = false
 }
 
+# Enable Artifact Registry API
+resource "google_project_service" "artifact_registry" {
+  service            = "artifactregistry.googleapis.com"
+  disable_on_destroy = false
+}
+
 # Service Account for Dataflow
 resource "google_service_account" "dataflow_runner" {
   account_id   = var.dataflow_service_account_name
@@ -81,6 +87,7 @@ resource "google_project_iam_member" "dataflow_worker_artifact_registry" {
   project = var.gcp_project_id
   role    = "roles/artifactregistry.reader"
   member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
+  depends_on = [google_project_service.artifact_registry]
 }
 
 # Output service account information
