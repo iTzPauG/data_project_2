@@ -71,19 +71,19 @@ resource "google_pubsub_subscription" "processed_location_subscription" {
 }
 
 # Forbidden or relevant locations topic (for Dataflow to publish forbidden/relevant locations)
-resource "google_pubsub_topic" "forbidden_relevant_location_data" {
-  name = var.forbidden_relevant_topic_name
+resource "google_pubsub_topic" "incoming_zone_data" {
+  name = var.zone_data_topic_name
 
   labels = {
     environment = var.environment
-    purpose     = "forbidden-relevant-data"
+    purpose     = "incoming-zone-data"
   }
 }
 
-# Subscription for forbidden/relevant location data
-resource "google_pubsub_subscription" "forbidden_relevant_location_subscription" {
-  name                 = "${var.forbidden_relevant_topic_name}-subscription"
-  topic                = google_pubsub_topic.forbidden_relevant_location_data.name
+# Subscription for incoming zone data
+resource "google_pubsub_subscription" "incoming_zone_data_subscription" {
+  name                 = "${var.zone_data_topic_name}-subscription"
+  topic                = google_pubsub_topic.incoming_zone_data.name
   ack_deadline_seconds = 60
 
   labels = {
@@ -108,9 +108,9 @@ output "pubsub_topics" {
       topic        = google_pubsub_topic.processed_location_data.name
       subscription = google_pubsub_subscription.processed_location_subscription.name
     }
-    forbidden_relevant_location = {
-      topic        = google_pubsub_topic.forbidden_relevant_location_data.name
-      subscription = google_pubsub_subscription.forbidden_relevant_location_subscription.name
+    incoming_zone = {
+      topic        = google_pubsub_topic.incoming_zone_data.name
+      subscription = google_pubsub_subscription.incoming_zone_data_subscription.name
     }
   }
 }

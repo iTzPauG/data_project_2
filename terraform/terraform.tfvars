@@ -10,7 +10,7 @@ message_retention_days   = 7
 notifications_topic_name = "notifications"
 location_data_topic_name = "processed-location-data"
 
-forbidden_relevant_topic_name = "forbidden-relevant-location-data"
+zone_data_topic_name = "zone-data"
 
 # Firestore Configuration
 firestore_database_name        = "location-db"
@@ -28,4 +28,4 @@ dataflow_service_account_name = "dataflow-runner"
 cloudsql_instance_name = "main-cloudsql-instance"
 cloudsql_db_name       = "appdb"
 cloudsql_user          = "appuser"
-cloudsql_password      = "your-secure-password"
+cloudsql_password      = "your-secure-password"  # Set via TF_VAR_cloudsql_password env variable

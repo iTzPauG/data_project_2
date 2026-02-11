@@ -24,6 +24,11 @@ output "processed_location_topic" {
   value       = google_pubsub_topic.processed_location_data.name
 }
 
+output "incoming_zone_topic" {
+  description = "Incoming zone data topic name"
+  value       = google_pubsub_topic.incoming_zone_data.name
+}
+
 # Firestore Outputs
 output "firestore_database_name" {
   description = "Firestore database name"
@@ -33,6 +38,18 @@ output "firestore_database_name" {
 output "firestore_database_id" {
   description = "Firestore database ID"
   value       = google_firestore_database.location_db.uid
+}
+
+# Cloud Run Outputs
+output "cloud_run_url" {
+  description = "Cloud Run service URL"
+  value       = google_cloud_run_v2_service.api.uri
+}
+
+# Dataflow Outputs
+output "dataflow_job_id" {
+  description = "Dataflow job ID"
+  value       = google_dataflow_flex_template_job.location_pipeline.job_id
 }
 
 # Dataflow and Storage Outputs
