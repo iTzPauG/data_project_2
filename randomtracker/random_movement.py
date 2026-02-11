@@ -423,8 +423,8 @@ class PersonMovementGenerator:
                 # 1. Escribir en CSV (Local)
                 self.write_element(position, output_file)
 
-                # 2. Escribir en Pub/Sub (Nube) <--- NUEVA LÍNEA
-                # self.publish_position(position) AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                # 2. Escribir en Pub/Sub (Nube)
+                self.publish_position(position) 
 
                 points_written += 1
                 
