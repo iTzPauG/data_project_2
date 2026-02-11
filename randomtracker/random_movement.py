@@ -14,12 +14,14 @@ import time
 import sys
 import threading
 from shapely.geometry import Point
+import os
+import requests
 
 
 class PersonMovementGenerator:
     """Generates random person movements on real road networks."""
     # Modificamos el init para aceptar el proyecto y el tópico
-    def __init__(self, place_name=None, center_point=None, distance=1000, project_id=None, topic_id=None):
+    def __init__(self, place_name=None, center_point=None, distance=1000, api_url=None):
         """
         Initialize the movement generator.
         
@@ -50,37 +52,28 @@ class PersonMovementGenerator:
         # Note: Building data will be queried on-demand per location due to data size
         self.buildings_cache = {}  # Cache for buildings near each location
 
-        self.publisher = None
-        self.topic_path = None
-
-        # Si nos han pasado los IDs, configuramos el cliente de Pub/Sub
-        if project_id and topic_id:
-            try:
-                # Creamos el cliente real
-                self.publisher = pubsub_v1.PublisherClient()
-                # Creamos la ruta completa "projects/X/topics/Y"
-                self.topic_path = self.publisher.topic_path(project_id, topic_id)
-                print(f"Conectado a Pub/Sub: {self.topic_path}")
-            except Exception as e:
-                print(f"Error conectando a Pub/Sub: {e}")
+        self.api_url = api_url
+        if self.api_url:
+            print(f"Configurado para enviar datos a API: {self.api_url}")
+        
     
     def get_random_node(self):
         """Get a random node from the street network."""
         return random.choice(self.nodes)
     
     def publish_position(self, position):
-        """Publica la posición actual al tópico de Pub/Sub."""
-        if not self.publisher or not self.topic_path:
+        """Envía la posición actual a la API mediante POST."""
+        if not self.api_url:
             return
 
         try:
             # 1. Convertir el diccionario a JSON String
             message_json = json.dumps(position)
-            
+            print(message_json)
             # 2. Convertir el String a Bytes (Pub/Sub requiere bytes)
             message_bytes = message_json.encode('utf-8')
-            
-            future = self.publisher.publish(self.topic_path, message_bytes)
+            # 3. Publicar a PubSub a través de la API
+            response = requests.post(self.api_url, json=message_bytes, timeout=2)
             
         except Exception as e:
             print(f"⚠️ Error publicando en Pub/Sub: {e}")
@@ -424,19 +417,14 @@ class PersonMovementGenerator:
                     'user_id': user_id,
                     'timestamp': current_time.isoformat(),
                     'latitude': current_lat,
-                    'longitude': current_lon,
-                    'node_id': current_route[node_index],
-                    'street_name': street_name,
-                    'road_type': road_type,
-                    'poi_name': poi_name,
-                    'poi_type': poi_type
+                    'longitude': current_lon
                 }
 
                 # 1. Escribir en CSV (Local)
                 self.write_element(position, output_file)
 
                 # 2. Escribir en Pub/Sub (Nube) <--- NUEVA LÍNEA
-                self.publish_position(position)
+                # self.publish_position(position) AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
                 points_written += 1
                 
@@ -571,12 +559,7 @@ class PersonMovementGenerator:
                     'user_id': user_id,
                     'timestamp': current_time.isoformat(),
                     'latitude': current_lat,
-                    'longitude': current_lon,
-                    'node_id': current_route[node_index],
-                    'street_name': street_name,
-                    'road_type': road_type,
-                    'poi_name': poi_name,
-                    'poi_type': poi_type
+                    'longitude': current_lon
                 }
                 
                 with lock:
@@ -625,11 +608,8 @@ def main():
     
     # 1. Configuración de Argumentos (Sustituye al bucle while manual)
     parser = argparse.ArgumentParser(description="Random Person Movement Tracker")
-    
-    # Argumentos Obligatorios (Pub/Sub)
-    parser.add_argument("--project_id", required=True, help="Google Cloud Project ID")
-    parser.add_argument("--topic_id", required=True, help="Pub/Sub Topic ID")
-    
+    API_URL = "<URL_DE_LA_API>"
+
     # Argumentos Opcionales (Simulación)
     parser.add_argument("--users", "-u", type=int, default=1, help="Number of concurrent users (1-100)")
     parser.add_argument("--time", "-t", type=float, default=2.0, help="Time interval between updates (0.1-60s)")
@@ -647,6 +627,16 @@ def main():
     if args.speed < 0.1 or args.speed > 50:
         print("Error: --speed must be between 0.1 and 50 m/s")
         sys.exit(1)
+
+    # 2. LÓGICA DE PRIORIDAD (Consola > Variable de Entorno)
+    api_target = args.api_url or os.getenv("API_URL")
+
+    # 3. VALIDACIÓN: Si no está en ninguno de los dos sitios, error.
+    if not api_target:
+        print("❌ Error: Debes especificar la URL de la API mediante el argumento --api_url o la variable de entorno API_URL")
+        sys.exit(1)
+
+    print(f"📡 API Target: {api_target}")
     
     print("=" * 60)
     print("Random Person Movement Tracker")
@@ -654,8 +644,6 @@ def main():
     
     # Initialize generator for Valencia, Spain
     print(f"\nInitializing movement generator for Valencia, Spain...")
-    print(f"Project ID: {args.project_id}")
-    print(f"Topic ID: {args.topic_id}")
     print(f"Number of users: {args.users}")
     print(f"Update interval: {args.time} seconds")
     print(f"Movement speed: {args.speed} m/s ({args.speed * 3.6:.1f} km/h)")
@@ -663,8 +651,7 @@ def main():
     # Instanciamos la clase pasando los argumentos capturados
     generator = PersonMovementGenerator(
         place_name="Valencia, Spain",
-        project_id=args.project_id,
-        topic_id=args.topic_id
+        api_url=api_target
     )
     
     # Run continuous tracking
