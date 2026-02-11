@@ -690,6 +690,7 @@ def main():
         radius = random.randint(20, 50)
         timestamp = datetime.utcnow().isoformat() + 'Z'
         result = {
+            "user_id": random.randint(1, 5),
             "latitude": lat,
             "longitude": lon,
             "timestamp": timestamp,
