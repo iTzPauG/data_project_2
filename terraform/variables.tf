@@ -6,7 +6,7 @@ variable "gcp_project_id" {
 variable "gcp_region" {
   description = "GCP region for resources"
   type        = string
-  default     = "europe-southwest1"
+  default     = "europe-west6"
 }
 
 variable "environment" {
@@ -82,6 +82,12 @@ variable "dataflow_max_workers" {
   description = "Maximum number of Dataflow workers"
   type        = number
   default     = 10
+}
+
+variable "dataflow_worker_region" {
+  description = "Region where Dataflow workers run (use a different region if the main one is capacity-exhausted)"
+  type        = string
+  default     = "europe-west1"
 }
 
 variable "dataflow_bucket_name" {

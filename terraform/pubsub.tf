@@ -48,27 +48,6 @@ resource "google_pubsub_subscription" "notifications_subscription" {
   }
 }
 
-# Processed location data topic (for Dataflow to publish processed locations)
-resource "google_pubsub_topic" "processed_location_data" {
-  name = var.location_data_topic_name
-
-  labels = {
-    environment = var.environment
-    purpose     = "processed-data"
-  }
-}
-
-# Subscription for processed location data
-resource "google_pubsub_subscription" "processed_location_subscription" {
-  name                 = "${var.location_data_topic_name}-subscription"
-  topic                = google_pubsub_topic.processed_location_data.name
-  ack_deadline_seconds = 60
-
-  labels = {
-    environment = var.environment
-    consumer    = "applications"
-  }
-}
 
 # Forbidden or relevant locations topic (for Dataflow to publish forbidden/relevant locations)
 resource "google_pubsub_topic" "incoming_zone_data" {
@@ -103,10 +82,6 @@ output "pubsub_topics" {
     notifications = {
       topic        = google_pubsub_topic.notifications.name
       subscription = google_pubsub_subscription.notifications_subscription.name
-    }
-    processed_location = {
-      topic        = google_pubsub_topic.processed_location_data.name
-      subscription = google_pubsub_subscription.processed_location_subscription.name
     }
     incoming_zone = {
       topic        = google_pubsub_topic.incoming_zone_data.name
