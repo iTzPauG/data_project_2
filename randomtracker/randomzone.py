@@ -19,7 +19,7 @@ from google.cloud import firestore
 class PersonMovementGenerator:
     """Generates random person movements on real road networks."""
     
-    def __init__(self, place_name=None, center_point=None, distance=1000):
+    def __init__(self, place_name=None, center_point=None, distance=1000, api_url=None):
         """
         Initialize the movement generator.
         
@@ -27,6 +27,7 @@ class PersonMovementGenerator:
             place_name: Name of the place (e.g., "Manhattan, New York, USA")
             center_point: Tuple of (latitude, longitude) as center
             distance: Distance in meters from center to download street network
+            api_url: URL of the API endpoint to send data (optional)
         """
         print("Downloading street network...")
         
@@ -49,6 +50,22 @@ class PersonMovementGenerator:
         
         # Note: Building data will be queried on-demand per location due to data size
         self.buildings_cache = {}  # Cache for buildings near each location
+
+        self.api_url = api_url
+        if self.api_url:
+            print(f"Configurado para enviar datos a API: {self.api_url}")
+
+        def publish_zone(self, zone_data):
+            """Envía la zona generada a la API mediante POST."""
+            if not self.api_url:
+                return
+            try:
+                message_json = json.dumps(zone_data)
+                print(message_json)
+                message_bytes = message_json.encode('utf-8')
+                response = requests.post(self.api_url, json=message_bytes, timeout=2)
+            except Exception as e:
+                print(f"⚠️ Error publicando zona en API: {e}")
     
     def get_random_node(self):
         """Get a random node from the street network."""
@@ -655,11 +672,15 @@ def main():
         else:
             i += 1
 
+
+    # API endpoint para zona
+    API_URL = "https://api-787549761080.europe-west6.run.app/zone"
+
     print("=" * 60)
     print("Random Node Coordinate Finder")
     print("=" * 60)
     print("\nInitializing movement generator for Valencia, Spain...")
-    generator = PersonMovementGenerator(place_name="Valencia, Spain")
+    generator = PersonMovementGenerator(place_name="Valencia, Spain", api_url=API_URL)
     node = generator.get_random_node()
     node_data = generator.graph.nodes[node]
     lat = node_data['y']
@@ -673,15 +694,9 @@ def main():
         "radius": radius
     }
 
-    # Enviar a Pub/Sub forbidden/relevant topic
-    from google.cloud import pubsub_v1
-    project_id = "data-project-2-kids"  # Cambia si tu proyecto es diferente
-    topic_id = "forbidden-relevant-location-data"  # Debe coincidir con el nombre del topic
-    publisher = pubsub_v1.PublisherClient()
-    topic_path = publisher.topic_path(project_id, topic_id)
-    data = json.dumps(result).encode("utf-8")
-    future = publisher.publish(topic_path, data)
-    print(f"Mensaje publicado en {topic_path}: {result}")
+    # Enviar a la API /zone
+    generator.publish_zone(result)
+    print(f"Zona publicada en {API_URL}: {result}")
     print("\nDone.")
     sys.exit(0)
 
