@@ -17,6 +17,7 @@ import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import StandardOptions
 from apache_beam.io.gcp.pubsub import ReadFromPubSub, WriteStringsToPubSub
+from apache_beam.io.gcp.bigquery import WriteToBigQuery, BigQueryDisposition
 from google.cloud import firestore
 
 logging.basicConfig(level=logging.INFO)
@@ -223,6 +224,9 @@ def run(argv=None):
     parser.add_argument('--firestore_collection', required=True,
                         help='Firestore collection for last user locations')
     parser.add_argument('--zones_collection', default='zones')
+    parser.add_argument('--bq_project', required=True, help='BigQuery project ID')
+    parser.add_argument('--bq_dataset', required=True, help='BigQuery dataset ID')
+    parser.add_argument('--bq_table', required=True, help='BigQuery table name')
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
@@ -251,6 +255,18 @@ def run(argv=None):
         | 'Format Location JSON' >> beam.Map(lambda loc: loc.to_json())
         | 'Publish to Location Topic' >> WriteStringsToPubSub(
             topic=known_args.output_location_topic
+        )
+    )
+
+    # 2b. Guardar historial de ubicaciones en BigQuery
+    (
+        locations
+        | 'LocationData to Dict' >> beam.Map(lambda loc: loc.to_json())
+        | 'Write to BigQuery' >> WriteToBigQuery(
+            table=f"{known_args.bq_project}:{known_args.bq_dataset}.{known_args.bq_table}",
+            schema='timestamp:TIMESTAMP,user_id:STRING,latitude:FLOAT,longitude:FLOAT',
+            write_disposition=BigQueryDisposition.WRITE_APPEND,
+            create_disposition=BigQueryDisposition.CREATE_NEVER
         )
     )
 
