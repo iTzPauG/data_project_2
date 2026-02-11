@@ -4,6 +4,7 @@ Random Person Movement Generator
 Generates realistic random person movements along actual roads using OpenStreetMap data.
 """
 
+
 import osmnx as ox
 import networkx as nx
 import random
@@ -14,6 +15,7 @@ import sys
 import threading
 from shapely.geometry import Point
 from google.cloud import firestore
+import requests
 
 
 class PersonMovementGenerator:
@@ -55,17 +57,16 @@ class PersonMovementGenerator:
         if self.api_url:
             print(f"Configurado para enviar datos a API: {self.api_url}")
 
-        def publish_zone(self, zone_data):
-            """Envía la zona generada a la API mediante POST."""
-            if not self.api_url:
-                return
-            try:
-                message_json = json.dumps(zone_data)
-                print(message_json)
-                message_bytes = message_json.encode('utf-8')
-                response = requests.post(self.api_url, json=message_bytes, timeout=2)
-            except Exception as e:
-                print(f"⚠️ Error publicando zona en API: {e}")
+    def publish_zone(self, zone_data):
+        """Envía la zona generada a la API mediante POST."""
+        if not self.api_url:
+            return
+        try:
+            message_json = json.dumps(zone_data)
+            print(message_json)
+            response = requests.post(self.api_url, json=zone_data, timeout=2)
+        except Exception as e:
+            print(f"⚠️ Error publicando zona en API: {e}")
     
     def get_random_node(self):
         """Get a random node from the street network."""
@@ -681,22 +682,21 @@ def main():
     print("=" * 60)
     print("\nInitializing movement generator for Valencia, Spain...")
     generator = PersonMovementGenerator(place_name="Valencia, Spain", api_url=API_URL)
-    node = generator.get_random_node()
-    node_data = generator.graph.nodes[node]
-    lat = node_data['y']
-    lon = node_data['x']
-    radius = random.randint(20, 50)
-    timestamp = datetime.utcnow().isoformat() + 'Z'
-    result = {
-        "latitude": lat,
-        "longitude": lon,
-        "timestamp": timestamp,
-        "radius": radius
-    }
-
-    # Enviar a la API /zone
-    generator.publish_zone(result)
-    print(f"Zona publicada en {API_URL}: {result}")
+    for i in range(10):
+        node = generator.get_random_node()
+        node_data = generator.graph.nodes[node]
+        lat = node_data['y']
+        lon = node_data['x']
+        radius = random.randint(20, 50)
+        timestamp = datetime.utcnow().isoformat() + 'Z'
+        result = {
+            "latitude": lat,
+            "longitude": lon,
+            "timestamp": timestamp,
+            "radius": radius
+        }
+        generator.publish_zone(result)
+        print(f"Zona publicada en {API_URL}: {result}")
     print("\nDone.")
     sys.exit(0)
 
