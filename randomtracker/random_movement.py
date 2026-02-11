@@ -608,7 +608,7 @@ def main():
     
     # 1. Configuración de Argumentos (Sustituye al bucle while manual)
     parser = argparse.ArgumentParser(description="Random Person Movement Tracker")
-    API_URL = "<URL_DE_LA_API>"
+    API_URL = "https://api-787549761080.europe-west6.run.app/location"
 
     # Argumentos Opcionales (Simulación)
     parser.add_argument("--users", "-u", type=int, default=1, help="Number of concurrent users (1-100)")
