@@ -19,6 +19,7 @@ override.tf.json
 *.tfvars.json
 *.tfvars.secret
 *.tfvars  # Uncomment if you want to exclude all tfvars files
+**/outputs.txt
 
 # Python
 __pycache__/

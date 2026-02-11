@@ -6,7 +6,7 @@ variable "gcp_project_id" {
 variable "gcp_region" {
   description = "GCP region for resources"
   type        = string
-  default     = "europe-southwest1"
+  default     = "europe-west6"
 }
 
 variable "environment" {
@@ -40,10 +40,10 @@ variable "location_data_topic_name" {
   default     = "processed-location-data"
 }
 
-variable "forbidden_relevant_topic_name" {
-  description = "Name of the forbidden or relevant locations topic"
+variable "zone_data_topic_name" {
+  description = "Name of the zone data topic"
   type        = string
-  default     = "forbidden-relevant-location-data"
+  default     = "zone-data"
 }
 
 # Firestore Variables
@@ -84,6 +84,12 @@ variable "dataflow_max_workers" {
   default     = 10
 }
 
+variable "dataflow_worker_region" {
+  description = "Region where Dataflow workers run (use a different region if the main one is capacity-exhausted)"
+  type        = string
+  default     = "europe-west1"
+}
+
 variable "dataflow_bucket_name" {
   description = "GCS bucket for Dataflow staging and templates"
   type        = string
@@ -120,4 +126,17 @@ variable "dataflow_service_account_name" {
   description = "Service account name for Dataflow"
   type        = string
   default     = "dataflow-runner"
+}
+
+# Cloud Run Variables
+variable "cloud_run_service_name" {
+  description = "Name of the Cloud Run service"
+  type        = string
+  default     = "api"
+}
+
+variable "cloud_run_allow_unauthenticated" {
+  description = "Allow unauthenticated access to Cloud Run service"
+  type        = bool
+  default     = true
 }

@@ -2,7 +2,7 @@
 resource "google_storage_bucket" "dataflow_bucket" {
   name          = "${var.gcp_project_id}-dataflow-staging"
   location      = var.gcp_region
-  force_destroy = false
+  force_destroy = true
 
   uniform_bucket_level_access = true
 
@@ -59,28 +59,93 @@ resource "google_storage_bucket_iam_member" "dataflow_temp_access" {
   member = "serviceAccount:${google_service_account.dataflow_runner.email}"
 }
 
-# Note: The actual Dataflow job deployment requires:
-# 1. Python Apache Beam pipeline files (location_pipeline.py)
-# 2. Python requirements file (requirements.txt)
-# 3. Upload both to the staging bucket
-# 4. Then use gcloud CLI to deploy
-#
-# This can be done manually or through CI/CD pipeline
-#
-# Example deployment command:
-# gcloud dataflow jobs run location-streaming-pipeline \
-#   --region europe-southwest1 \
-#   --staging-location gs://${gcp_project_id}-dataflow-staging/staging \
-#   --temp-location gs://${gcp_project_id}-dataflow-temp \
-#   --service-account-email ${dataflow_service_account_email} \
-#   --python-requirements gs://${gcp_project_id}-dataflow-staging/templates/requirements.txt \
-#   gs://${gcp_project_id}-dataflow-staging/templates/location_pipeline.py \
-#   --input_topic projects/${gcp_project_id}/topics/incoming-location-data \
-#   --output_notifications_topic projects/${gcp_project_id}/topics/notifications \
-#   --output_location_topic projects/${gcp_project_id}/topics/processed-location-data \
-#   --firestore_project ${gcp_project_id} \
-#   --firestore_database ${firestore_database_name} \
-#   --firestore_collection locations
+# Package pipeline source code into a zip
+data "archive_file" "pipeline_source" {
+  type        = "zip"
+  source_dir  = "${path.module}/../dataflow-pipeline"
+  output_path = "${path.module}/../pipeline-source.zip"
+}
+
+# Upload pipeline source zip to GCS
+resource "google_storage_bucket_object" "pipeline_source" {
+  name   = "pipeline-source-${data.archive_file.pipeline_source.output_md5}.zip"
+  bucket = google_storage_bucket.dataflow_bucket.name
+  source = data.archive_file.pipeline_source.output_path
+}
+
+# Build the Flex Template Docker image via Cloud Build (same pattern as the API)
+resource "terraform_data" "dataflow_image_build" {
+  triggers_replace = [
+    data.archive_file.pipeline_source.output_md5
+  ]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      gcloud builds submit \
+        "${path.module}/../dataflow-pipeline" \
+        --tag "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/location-pipeline:latest" \
+        --project "${var.gcp_project_id}" \
+        --quiet
+    EOT
+  }
+
+  depends_on = [
+    google_storage_bucket_object.pipeline_source,
+    google_artifact_registry_repository.docker_repo,
+    google_project_service.cloudbuild,
+  ]
+}
+
+# Flex Template spec JSON — points Dataflow at the Docker image we just built.
+# This replaces `gcloud dataflow flex-template build`; no local-exec needed.
+resource "google_storage_bucket_object" "flex_template_spec" {
+  name    = "templates/location-pipeline.json"
+  bucket  = google_storage_bucket.dataflow_bucket.name
+  content = jsonencode({
+    image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/location-pipeline:latest"
+    metadata = jsondecode(file("${path.module}/../dataflow-pipeline/metadata.json"))
+    sdkInfo = {
+      language = "PYTHON"
+    }
+  })
+
+  depends_on = [terraform_data.dataflow_image_build]
+}
+
+# Dataflow Flex Template job (streaming)
+resource "google_dataflow_flex_template_job" "location_pipeline" {
+  provider                = google-beta
+  name                    = var.dataflow_job_name
+  region                  = var.gcp_region
+  container_spec_gcs_path = "gs://${google_storage_bucket.dataflow_bucket.name}/templates/location-pipeline.json"
+  on_delete               = "cancel"
+  service_account_email   = google_service_account.dataflow_runner.email
+
+  parameters = {
+    input_topic                    = "projects/${var.gcp_project_id}/topics/${var.incoming_topic_name}"
+    output_notifications_topic     = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
+    output_location_topic          = "projects/${var.gcp_project_id}/topics/${var.location_data_topic_name}"
+    firestore_project              = var.gcp_project_id
+    firestore_database             = var.firestore_database_name
+    firestore_collection           = var.firestore_locations_collection
+    zones_collection               = var.firestore_zones_collection
+    bq_project                     = var.gcp_project_id
+    bq_dataset                     = google_bigquery_dataset.default.dataset_id
+    bq_table                       = google_bigquery_table.default.table_id
+    max_num_workers                = tostring(var.dataflow_max_workers)
+    worker_region                  = var.dataflow_worker_region
+    staging_location               = "gs://${google_storage_bucket.dataflow_bucket.name}/staging"
+    temp_location                  = "gs://${google_storage_bucket.dataflow_temp.name}"
+  }
+
+  depends_on = [
+    google_storage_bucket_object.flex_template_spec,
+    google_project_iam_member.dataflow_worker,
+    google_project_iam_member.dataflow_worker_pubsub,
+    google_pubsub_topic.incoming_location_data,
+    google_pubsub_topic.notifications,
+  ]
+}
 
 # Outputs
 output "dataflow_staging_bucket" {
