@@ -76,6 +76,13 @@ resource "google_project_iam_member" "dataflow_worker_storage_viewer" {
   depends_on = [google_project_service.storage]
 }
 
+# IAM Role: Artifact Registry Reader (for Dataflow to pull Docker images)
+resource "google_project_iam_member" "dataflow_worker_artifact_registry" {
+  project = var.gcp_project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
+}
+
 # Output service account information
 output "dataflow_service_account_email" {
   description = "Service account email for Dataflow"
