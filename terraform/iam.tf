@@ -1,3 +1,17 @@
+# Explicit BigQuery Admin for main user and backend service account
+resource "google_project_iam_member" "bq_admin_user" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.admin"
+  member  = "user:pgesparterpubli@gmail.com"
+}
+
+# If your Terraform backend uses a service account, add it here as well:
+# Replace the email below with the actual service account if different
+resource "google_project_iam_member" "bq_admin_tf_backend" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.admin"
+  member  = "serviceAccount:service-787549761080@gs-project-accounts.iam.gserviceaccount.com"
+}
 # Enable required APIs
 resource "google_project_service" "dataflow" {
   service            = "dataflow.googleapis.com"
