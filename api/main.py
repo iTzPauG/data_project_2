@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from typing import Optional, Union
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from google.cloud import pubsub_v1
 from pydantic import BaseModel, field_validator
 
@@ -55,6 +55,7 @@ class ZoneRequest(BaseModel):
     latitude: float
     longitude: float
     radius: float
+    timestamp: Optional[str] = None
     node_id: Optional[str] = None
 
     @field_validator("latitude")
@@ -101,20 +102,30 @@ def publish_location(data: LocationRequest):
 
 
 @app.post("/zone")
-def create_zone(data: ZoneRequest):
+async def create_zone(request: Request):
     if not GCP_PROJECT_ID:
         raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
 
+    body = await request.json()
+    print(f"[API] body recibido: {body}")
+    # Pydantic validación (opcional, pero forzamos user_id manualmente)
+    user_id = body.get("user_id")
+    latitude = body.get("latitude")
+    longitude = body.get("longitude")
+    radius = body.get("radius")
+    timestamp = body.get("timestamp")
+    node_id = body.get("node_id")
     message = {
-        "user_id": str(data.user_id),
-        "latitude": data.latitude,
-        "longitude": data.longitude,
-        "radius": data.radius,
+        "user_id": str(user_id) if user_id is not None else None,
+        "latitude": latitude,
+        "longitude": longitude,
+        "radius": radius,
+        "timestamp": timestamp,
     }
+    if node_id:
+        message["node_id"] = node_id
 
-    if data.node_id:
-        message["node_id"] = data.node_id
-
+    print(f"[API] mensaje publicado: {message}")
     topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_ZONE_TOPIC)
     future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
     message_id = future.result()

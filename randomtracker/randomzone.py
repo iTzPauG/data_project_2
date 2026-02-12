@@ -62,8 +62,9 @@ class PersonMovementGenerator:
         if not self.api_url:
             return
         try:
+            print(f"[randomzone.py] zone_data a enviar: {zone_data}")
             message_json = json.dumps(zone_data)
-            print(message_json)
+            print(f"[randomzone.py] JSON serializado: {message_json}")
             response = requests.post(self.api_url, json=zone_data, timeout=2)
         except Exception as e:
             print(f"⚠️ Error publicando zona en API: {e}")

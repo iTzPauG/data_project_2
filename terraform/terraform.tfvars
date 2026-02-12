@@ -20,6 +20,7 @@ firestore_metadata_collection  = "metadata"
 # Dataflow Configuration
 dataflow_job_name    = "location-streaming-pipeline"
 dataflow_max_workers = 10
+dataflow_worker_region = "europe-west6"
 
 # Service Account
 dataflow_service_account_name = "dataflow-runner"
