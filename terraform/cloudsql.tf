@@ -1,9 +1,23 @@
+# Cuenta de servicio dedicada para la Cloud Function
+resource "google_service_account" "zone_data_function" {
+  account_id   = "zone-data-function-sa"
+  display_name = "Service Account for zone-data-to-sql Cloud Function"
+}
+
+# Asigna el rol Cloud SQL Client a la cuenta de servicio
+resource "google_project_iam_member" "zone_data_function_sql_client" {
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.zone_data_function.email}"
+}
+# Create forbidden_locations table in Cloud SQL
 # requirements.txt para la Cloud Function Gen 2
 resource "local_file" "zone_data_function_requirements" {
   filename = "../dataflow-pipeline/requirements.txt"
   content  = <<-EOT
 psycopg2
 google-cloud-secret-manager
+google-cloud-firestore
 EOT
 }
 
@@ -50,41 +64,27 @@ resource "google_cloudfunctions2_function" "zone_data_to_sql" {
     }
   }
   service_config {
-    min_instance_count = 0
+    min_instance_count = 1
     max_instance_count = 1
     available_memory   = "256M"
-    timeout_seconds    = 60
+    timeout_seconds    = 180
     environment_variables = {
       DB_USER    = var.cloudsql_user
       DB_PASS    = var.cloudsql_password
       DB_NAME    = var.cloudsql_db_name
-      DB_HOST    = google_sql_database_instance.main.connection_name
+      DB_HOST    = "34.65.60.185"
       GCP_PROJECT = var.gcp_project_id
     }
+    service_account_email = google_service_account.zone_data_function.email
+  }
+  event_trigger {
+    event_type = "google.cloud.pubsub.topic.v1.messagePublished"
+    trigger_region = var.gcp_region
+    pubsub_topic = "projects/${var.gcp_project_id}/topics/zone-data"
   }
 }
 
 # Eventarc trigger para Pub/Sub topic
-resource "google_eventarc_trigger" "zone_data_to_sql_trigger" {
-  name     = "zone-data-to-sql-trigger"
-  location = var.gcp_region
-  transport {
-    pubsub {
-      topic = "projects/${var.gcp_project_id}/topics/zone-data"
-    }
-  }
-  matching_criteria {
-    attribute = "type"
-    value     = "google.cloud.pubsub.topic.v1.messagePublished"
-  }
-    destination {
-      cloud_run_service {
-        service = google_cloudfunctions2_function.zone_data_to_sql.name
-        region  = var.gcp_region
-      }
-    }
-  service_account = google_cloudfunctions2_function.zone_data_to_sql.service_config[0].service_account_email
-}
 # Cloud SQL instance for frequent queries (basic setup)
 resource "google_sql_database_instance" "main" {
   name             = var.cloudsql_instance_name
@@ -99,6 +99,10 @@ resource "google_sql_database_instance" "main" {
     }
     ip_configuration {
       ipv4_enabled = true
+      authorized_networks {
+        name  = "all"
+        value = "0.0.0.0/0"
+      }
     }
     user_labels = {
       environment = var.environment
