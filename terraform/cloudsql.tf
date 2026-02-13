@@ -72,7 +72,7 @@ resource "google_cloudfunctions2_function" "zone_data_to_sql" {
       DB_USER    = var.cloudsql_user
       DB_PASS    = var.cloudsql_password
       DB_NAME    = var.cloudsql_db_name
-      DB_HOST    = "34.65.60.185"
+      DB_HOST    = google_sql_database_instance.main.public_ip_address
       GCP_PROJECT = var.gcp_project_id
     }
     service_account_email = google_service_account.zone_data_function.email

@@ -104,6 +104,20 @@ resource "google_project_iam_member" "dataflow_worker_artifact_registry" {
   depends_on = [google_project_service.artifact_registry]
 }
 
+# IAM Role: Cloud SQL Client (for Dataflow to read from Cloud SQL)
+resource "google_project_iam_member" "dataflow_worker_cloudsql" {
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
+}
+
+# IAM Role: BigQuery Data Editor (for Dataflow to write to BigQuery)
+resource "google_project_iam_member" "dataflow_worker_bigquery" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
+}
+
 # Output service account information
 output "dataflow_service_account_email" {
   description = "Service account email for Dataflow"

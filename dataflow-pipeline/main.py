@@ -10,7 +10,6 @@ def zone_data_to_sql(event, context):
     db_pass = os.environ.get("DB_PASS", "your-secure-password")
     db_name = os.environ.get("DB_NAME", "appdb")
     db_host = os.environ.get("DB_HOST", "/cloudsql/main-cloudsql-instance")
-    project_id = os.environ.get("GCP_PROJECT", "data-project-2-kids")
 
     # Ensure forbidden_locations table exists
     try:

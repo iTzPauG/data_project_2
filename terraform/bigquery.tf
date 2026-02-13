@@ -1,6 +1,6 @@
 
 # Crear un dataset estándar de BigQuery
-resource "google_bigquery_dataset" "default" {
+resource "google_bigquery_dataset" "bqdataset" {
   dataset_id                 = "dataset_kids"
   location                   = var.gcp_region
   description                = "Dataset estándar para el proyecto."
@@ -8,8 +8,8 @@ resource "google_bigquery_dataset" "default" {
 }
 
 # Crear una tabla estándar en el dataset
-resource "google_bigquery_table" "default" {
-  dataset_id = google_bigquery_dataset.default.dataset_id
+resource "google_bigquery_table" "table" {
+  dataset_id = google_bigquery_dataset.bqdataset.dataset_id
   table_id   = "my_table"
 
   schema = <<EOF
