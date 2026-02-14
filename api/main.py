@@ -11,6 +11,16 @@ from pydantic import BaseModel, field_validator
 
 app = FastAPI(title="Location & Zone Ingestion API")
 
+# --- IMPORTANTE: CORS ---
+# Permite que tu Frontend (localhost:5173 o Cloud Run) se conecte
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Configuration
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 PUBSUB_LOCATION_TOPIC = os.environ.get("PUBSUB_LOCATION_TOPIC", "incoming-location-data")
@@ -26,6 +36,28 @@ def get_publisher():
         _publisher = pubsub_v1.PublisherClient()
     return _publisher
 
+# --- GESTOR DE WEBSOCKETS (NUEVO) ---
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"🔌 Cliente conectado. Total: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        """Envía el mensaje a todos los Frontends conectados"""
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                print(f"Error enviando WS: {e}")
+
+manager = ConnectionManager()
 
 # --- Models ---
 
@@ -82,23 +114,31 @@ class ZoneRequest(BaseModel):
 
 # --- Endpoints ---
 
+# 2. Endpoint que recibe los datos del script Python
 @app.post("/location")
-def publish_location(data: LocationRequest):
-    if not GCP_PROJECT_ID:
-        raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
-
-    message = {
+async def publish_location(data: LocationRequest):
+    
+    # Preparamos el mensaje
+    message_dict = {
         "user_id": str(data.user_id),
         "latitude": data.latitude,
         "longitude": data.longitude,
         "timestamp": data.timestamp or datetime.now().isoformat(),
     }
 
-    topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_LOCATION_TOPIC)
-    future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
-    message_id = future.result()
+    # A) ENVIAR A PUB/SUB (Para Dataflow/BBDD)
+    if GCP_PROJECT_ID:
+        try:
+            topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_LOCATION_TOPIC)
+            future = get_publisher().publish(topic_path, json.dumps(message_dict).encode("utf-8"))
+            # future.result() # Opcional: esperar confirmación (puede añadir latencia)
+        except Exception as e:
+            print(f"Error PubSub: {e}")
+    
+    # B) ENVIAR A WEBSOCKET (Para React en Tiempo Real)
+    await manager.broadcast(message_dict)
 
-    return {"status": "ok", "message_id": message_id}
+    return {"status": "published_and_broadcasted"}
 
 
 @app.post("/zone")
@@ -131,3 +171,14 @@ async def create_zone(request: Request):
     message_id = future.result()
 
     return {"status": "ok", "message_id": message_id}
+
+# 1. Endpoint para que React se conecte (ws://...)
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Mantenemos la conexión abierta escuchando (aunque React no mande nada)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
