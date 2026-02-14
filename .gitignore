@@ -14,6 +14,7 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+.terraform.lock.hcl
 
 # Terraform variables (sensitive data)
 *.tfvars.json
