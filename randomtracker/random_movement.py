@@ -3,7 +3,6 @@
 Random Person Movement Generator
 Generates realistic random person movements along actual roads using OpenStreetMap data.
 """
-from google.cloud import pubsub_v1
 import argparse
 import osmnx as ox
 import networkx as nx

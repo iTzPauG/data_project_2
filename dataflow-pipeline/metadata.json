@@ -3,21 +3,21 @@
   "description": "Reads location data from Pub/Sub, checks zone matches, saves to Firestore, writes to BigQuery, and publishes to output topics.",
   "parameters": [
     {
+      "name": "input_subscription",
+      "label": "Input Pub/Sub subscription (recommended)",
+      "helpText": "Full Pub/Sub subscription path for incoming location data (projects/<project>/subscriptions/<subscription>). Recommended over topic for message durability.",
+      "isOptional": true
+    },
+    {
       "name": "input_topic",
-      "label": "Input Pub/Sub topic",
-      "helpText": "Full Pub/Sub topic path for incoming location data (projects/<project>/topics/<topic>).",
-      "isOptional": false
+      "label": "Input Pub/Sub topic (deprecated)",
+      "helpText": "Full Pub/Sub topic path for incoming location data (projects/<project>/topics/<topic>). Deprecated: use input_subscription instead to prevent message loss.",
+      "isOptional": true
     },
     {
       "name": "output_notifications_topic",
       "label": "Notifications Pub/Sub topic",
       "helpText": "Full Pub/Sub topic path for zone match notifications.",
-      "isOptional": false
-    },
-    {
-      "name": "output_location_topic",
-      "label": "Processed location Pub/Sub topic",
-      "helpText": "Full Pub/Sub topic path for processed location data.",
       "isOptional": false
     },
     {
@@ -39,11 +39,28 @@
       "isOptional": false
     },
     {
-      "name": "zones_collection",
-      "label": "Firestore zones collection",
-      "helpText": "Firestore collection for restricted zones.",
-      "isOptional": true,
-      "defaultValue": "zones"
+      "name": "db_host",
+      "label": "CloudSQL instance IP",
+      "helpText": "CloudSQL instance public IP address.",
+      "isOptional": false
+    },
+    {
+      "name": "db_name",
+      "label": "CloudSQL database name",
+      "helpText": "CloudSQL database name (e.g., appdb).",
+      "isOptional": false
+    },
+    {
+      "name": "db_user",
+      "label": "CloudSQL user name",
+      "helpText": "CloudSQL database user name.",
+      "isOptional": false
+    },
+    {
+      "name": "db_pass",
+      "label": "CloudSQL user password",
+      "helpText": "CloudSQL database user password.",
+      "isOptional": false
     },
     {
       "name": "bq_project",

@@ -141,7 +141,6 @@ gcloud dataflow jobs run location-streaming-pipeline \
   gs://$BUCKET/templates/location_pipeline.py \
   --input_topic=projects/$PROJECT_ID/topics/incoming-location-data \
   --output_notifications_topic=projects/$PROJECT_ID/topics/notifications \
-  --output_location_topic=projects/$PROJECT_ID/topics/processed-location-data \
   --firestore_project=$PROJECT_ID \
   --firestore_database=location-db \
   --firestore_collection=locations
@@ -190,7 +189,6 @@ cd dataflow-pipeline
 python location_pipeline.py \
   --input_topic=projects/YOUR_PROJECT/topics/incoming-location-data \
   --output_notifications_topic=projects/YOUR_PROJECT/topics/notifications \
-  --output_location_topic=projects/YOUR_PROJECT/topics/processed-location-data \
   --firestore_project=YOUR_PROJECT \
   --firestore_database=location-db \
   --firestore_collection=locations \

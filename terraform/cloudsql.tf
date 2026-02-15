@@ -30,7 +30,7 @@ resource "archive_file" "zone_data_function_zip" {
     filename = "main.py"
   }
   source {
-    content  = file("../dataflow-pipeline/requirements.txt")
+    content  = local_file.zone_data_function_requirements.content
     filename = "requirements.txt"
   }
   excludes    = ["*.zip"]

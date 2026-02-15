@@ -44,6 +44,12 @@ resource "google_project_service" "artifact_registry" {
   disable_on_destroy = false
 }
 
+# Enable BigQuery API
+resource "google_project_service" "bigquery" {
+  service            = "bigquery.googleapis.com"
+  disable_on_destroy = false
+}
+
 # Service Account for Dataflow
 resource "google_service_account" "dataflow_runner" {
   account_id   = var.dataflow_service_account_name
@@ -55,6 +61,15 @@ resource "google_service_account" "dataflow_runner" {
 resource "google_project_iam_member" "dataflow_worker" {
   project = var.gcp_project_id
   role    = "roles/dataflow.worker"
+  member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
+
+  depends_on = [google_project_service.dataflow]
+}
+
+# IAM Role: Dataflow Developer (for job management including jobs.list)
+resource "google_project_iam_member" "dataflow_developer" {
+  project = var.gcp_project_id
+  role    = "roles/dataflow.developer"
   member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
 
   depends_on = [google_project_service.dataflow]
@@ -102,6 +117,30 @@ resource "google_project_iam_member" "dataflow_worker_artifact_registry" {
   role    = "roles/artifactregistry.reader"
   member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
   depends_on = [google_project_service.artifact_registry]
+}
+
+# IAM Role: BigQuery Data Editor (for Dataflow to write to BigQuery)
+resource "google_project_iam_member" "dataflow_worker_bigquery" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
+
+  depends_on = [google_project_service.bigquery]
+}
+
+# Enable Cloud SQL Admin API
+resource "google_project_service" "sqladmin" {
+  service            = "sqladmin.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Grant Dataflow service account Cloud SQL Client role
+resource "google_project_iam_member" "dataflow_cloudsql_client" {
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.dataflow_runner.email}"
+
+  depends_on = [google_project_service.sqladmin]
 }
 
 # Output service account information

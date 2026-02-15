@@ -99,10 +99,10 @@ resource "terraform_data" "dataflow_image_build" {
 # Flex Template spec JSON — points Dataflow at the Docker image we just built.
 # This replaces `gcloud dataflow flex-template build`; no local-exec needed.
 resource "google_storage_bucket_object" "flex_template_spec" {
-  name    = "templates/location-pipeline.json"
-  bucket  = google_storage_bucket.dataflow_bucket.name
+  name   = "templates/location-pipeline.json"
+  bucket = google_storage_bucket.dataflow_bucket.name
   content = jsonencode({
-    image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/location-pipeline:latest"
+    image    = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/location-pipeline:latest"
     metadata = jsondecode(file("${path.module}/../dataflow-pipeline/metadata.json"))
     sdkInfo = {
       language = "PYTHON"
@@ -122,28 +122,33 @@ resource "google_dataflow_flex_template_job" "location_pipeline" {
   service_account_email   = google_service_account.dataflow_runner.email
 
   parameters = {
-    input_topic                    = "projects/${var.gcp_project_id}/topics/${var.incoming_topic_name}"
-    output_notifications_topic     = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
-    output_location_topic          = "projects/${var.gcp_project_id}/topics/${var.location_data_topic_name}"
-    firestore_project              = var.gcp_project_id
-    firestore_database             = var.firestore_database_name
-    firestore_collection           = var.firestore_locations_collection
-    zones_collection               = var.firestore_zones_collection
-    bq_project                     = var.gcp_project_id
-    bq_dataset                     = google_bigquery_dataset.default.dataset_id
-    bq_table                       = google_bigquery_table.default.table_id
-    max_num_workers                = tostring(var.dataflow_max_workers)
-    worker_region                  = var.dataflow_worker_region
-    staging_location               = "gs://${google_storage_bucket.dataflow_bucket.name}/staging"
-    temp_location                  = "gs://${google_storage_bucket.dataflow_temp.name}"
+    input_subscription         = "projects/${var.gcp_project_id}/subscriptions/${google_pubsub_subscription.incoming_location_subscription.name}"
+    output_notifications_topic = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
+    firestore_project          = var.gcp_project_id
+    firestore_database         = var.firestore_database_name
+    firestore_collection       = var.firestore_locations_collection
+    db_host                    = google_sql_database_instance.main.public_ip_address
+    db_name                    = var.cloudsql_db_name
+    db_user                    = var.cloudsql_user
+    db_pass                    = var.cloudsql_password
+    bq_project                 = var.gcp_project_id
+    bq_dataset                 = google_bigquery_dataset.default.dataset_id
+    bq_table                   = google_bigquery_table.default.table_id
   }
 
   depends_on = [
     google_storage_bucket_object.flex_template_spec,
     google_project_iam_member.dataflow_worker,
+    google_project_iam_member.dataflow_developer,
     google_project_iam_member.dataflow_worker_pubsub,
+    google_project_iam_member.dataflow_worker_bigquery,
+    google_project_iam_member.dataflow_cloudsql_client,
+    google_sql_database_instance.main,
     google_pubsub_topic.incoming_location_data,
+    google_pubsub_subscription.incoming_location_subscription,
     google_pubsub_topic.notifications,
+    google_bigquery_dataset.default,
+    google_bigquery_table.default,
   ]
 }
 
@@ -171,7 +176,6 @@ output "dataflow_config" {
     service_account_email      = google_service_account.dataflow_runner.email
     input_topic                = "projects/${var.gcp_project_id}/topics/${var.incoming_topic_name}"
     output_notifications_topic = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
-    output_location_topic      = "projects/${var.gcp_project_id}/topics/${var.location_data_topic_name}"
     firestore_project          = var.gcp_project_id
     firestore_database         = var.firestore_database_name
     firestore_collection       = var.firestore_locations_collection

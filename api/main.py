@@ -1,6 +1,7 @@
 """FastAPI REST API for Location & Zone Ingestion."""
 
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Optional, Union
@@ -8,6 +9,13 @@ from typing import Optional, Union
 from fastapi import FastAPI, HTTPException, Request
 from google.cloud import pubsub_v1
 from pydantic import BaseModel, field_validator
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Location & Zone Ingestion API")
 
@@ -23,7 +31,9 @@ _publisher = None
 def get_publisher():
     global _publisher
     if _publisher is None:
+        logger.info("Initializing Pub/Sub publisher client")
         _publisher = pubsub_v1.PublisherClient()
+        logger.info("Pub/Sub publisher client initialized successfully")
     return _publisher
 
 
@@ -39,6 +49,7 @@ class LocationRequest(BaseModel):
     @classmethod
     def validate_latitude(cls, v):
         if not -90 <= v <= 90:
+            logger.warning(f"Invalid latitude value received: {v}")
             raise ValueError("Latitude must be between -90 and 90")
         return v
 
@@ -46,6 +57,7 @@ class LocationRequest(BaseModel):
     @classmethod
     def validate_longitude(cls, v):
         if not -180 <= v <= 180:
+            logger.warning(f"Invalid longitude value received: {v}")
             raise ValueError("Longitude must be between -180 and 180")
         return v
 
@@ -62,6 +74,7 @@ class ZoneRequest(BaseModel):
     @classmethod
     def validate_latitude(cls, v):
         if not -90 <= v <= 90:
+            logger.warning(f"Invalid zone latitude value received: {v}")
             raise ValueError("Latitude must be between -90 and 90")
         return v
 
@@ -69,6 +82,7 @@ class ZoneRequest(BaseModel):
     @classmethod
     def validate_longitude(cls, v):
         if not -180 <= v <= 180:
+            logger.warning(f"Invalid zone longitude value received: {v}")
             raise ValueError("Longitude must be between -180 and 180")
         return v
 
@@ -76,8 +90,21 @@ class ZoneRequest(BaseModel):
     @classmethod
     def validate_radius(cls, v):
         if v <= 0:
+            logger.warning(f"Invalid zone radius value received: {v}")
             raise ValueError("Radius must be positive")
         return v
+
+
+# --- Startup Event ---
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("=" * 60)
+    logger.info("Starting Location & Zone Ingestion API")
+    logger.info(f"GCP_PROJECT_ID: {GCP_PROJECT_ID}")
+    logger.info(f"PUBSUB_LOCATION_TOPIC: {PUBSUB_LOCATION_TOPIC}")
+    logger.info(f"PUBSUB_ZONE_TOPIC: {PUBSUB_ZONE_TOPIC}")
+    logger.info("=" * 60)
 
 
 # --- Endpoints ---
