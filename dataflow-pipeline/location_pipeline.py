@@ -216,15 +216,16 @@ class SaveLastLocationToFirestoreFn(beam.DoFn):
 
 def run(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument('--db_user', required=True, help='Cloud SQL user')
+    parser.add_argument('--db_pass', required=True, help='Cloud SQL password')
+    parser.add_argument('--db_name', required=True, help='Cloud SQL database name')
+    parser.add_argument('--db_host', required=True, help='Cloud SQL host')
     parser.add_argument('--input_topic', required=True)
     parser.add_argument('--output_notifications_topic', required=True)
-    parser.add_argument('--output_location_topic', required=True)
-    parser.add_argument('--firestore_project', required=True)
+    parser.add_argument('--project_id', required=True, help='GCP project ID')
     parser.add_argument('--firestore_database', required=True)
-    parser.add_argument('--firestore_collection', required=True,
-                        help='Firestore collection for last user locations')
-    parser.add_argument('--zones_collection', default='zones')
-    parser.add_argument('--bq_project', required=True, help='BigQuery project ID')
+    parser.add_argument('--firestore_collection', required=True)
+    parser.add_argument('--zones_sql', help='SQL table for checking zones')
     parser.add_argument('--bq_dataset', required=True, help='BigQuery dataset ID')
     parser.add_argument('--bq_table', required=True, help='BigQuery table name')
 
@@ -242,20 +243,17 @@ def run(argv=None):
         | 'Parse Location Data' >> beam.ParDo(ParseLocationDataFn())
     )
 
-    # 2. Branch A: Save last location to Firestore + publish to location topic
+    # 2. Branch A: Save last location to Firestore
     (
         locations
         | 'Save Last Location to Firestore' >> beam.ParDo(
             SaveLastLocationToFirestoreFn(
-                project=known_args.firestore_project,
+                project=known_args.project_id,
                 database=known_args.firestore_database,
                 collection=known_args.firestore_collection
             )
         )
         | 'Format Location JSON' >> beam.Map(lambda loc: loc.to_json())
-        | 'Publish to Location Topic' >> WriteStringsToPubSub(
-            topic=known_args.output_location_topic
-        )
     )
 
     # 2b. Guardar historial de ubicaciones en BigQuery
@@ -263,7 +261,7 @@ def run(argv=None):
         locations
         | 'LocationData to Dict' >> beam.Map(lambda loc: loc.to_json())
         | 'Write to BigQuery' >> WriteToBigQuery(
-            table=f"{known_args.bq_project}:{known_args.bq_dataset}.{known_args.bq_table}",
+            table=f"{known_args.project_id}:{known_args.bq_dataset}.{known_args.bq_table}",
             schema='timestamp:TIMESTAMP,user_id:STRING,latitude:FLOAT,longitude:FLOAT',
             write_disposition=BigQueryDisposition.WRITE_APPEND,
             create_disposition=BigQueryDisposition.CREATE_NEVER
@@ -275,7 +273,7 @@ def run(argv=None):
         locations
         | 'Check Zone Match' >> beam.ParDo(
             CheckZoneMatchFn(
-                firestore_project=known_args.firestore_project,
+                firestore_project=known_args.project_id,
                 firestore_database=known_args.firestore_database,
                 zones_collection=known_args.zones_collection
             )

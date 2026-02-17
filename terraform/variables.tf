@@ -65,8 +65,8 @@ variable "firestore_metadata_collection" {
   default     = "metadata"
 }
 
-variable "firestore_zones_collection" {
-  description = "Firestore collection for restricted zones"
+variable "zones_sql_table" {
+  description = "Cloud SQL table name for zones"
   type        = string
   default     = "zones"
 }

@@ -122,20 +122,22 @@ resource "google_dataflow_flex_template_job" "location_pipeline" {
   service_account_email   = google_service_account.dataflow_runner.email
 
   parameters = {
-    input_topic                    = "projects/${var.gcp_project_id}/topics/${var.incoming_topic_name}"
-    output_notifications_topic     = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
-    output_location_topic          = "projects/${var.gcp_project_id}/topics/${var.location_data_topic_name}"
-    firestore_project              = var.gcp_project_id
-    firestore_database             = var.firestore_database_name
-    firestore_collection           = var.firestore_locations_collection
-    zones_collection               = var.firestore_zones_collection
-    bq_project                     = var.gcp_project_id
-    bq_dataset                     = google_bigquery_dataset.default.dataset_id
-    bq_table                       = google_bigquery_table.default.table_id
-    max_num_workers                = tostring(var.dataflow_max_workers)
-    worker_region                  = var.dataflow_worker_region
-    staging_location               = "gs://${google_storage_bucket.dataflow_bucket.name}/staging"
-    temp_location                  = "gs://${google_storage_bucket.dataflow_temp.name}"
+    input_topic                = "projects/${var.gcp_project_id}/topics/${var.incoming_topic_name}"
+    output_notifications_topic = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
+    project_id                 = var.gcp_project_id
+    firestore_database         = var.firestore_database_name
+    firestore_collection       = var.firestore_locations_collection
+    zones_sql                  = var.zones_sql_table
+    bq_dataset                 = google_bigquery_dataset.bqdataset.dataset_id
+    bq_table                   = google_bigquery_table.table.table_id
+    db_user                    = var.cloudsql_user
+    db_pass                    = var.cloudsql_password
+    db_name                    = var.cloudsql_db_name
+    db_host                    = google_sql_database_instance.main.public_ip_address
+    max_num_workers            = tostring(var.dataflow_max_workers)
+    worker_region              = var.dataflow_worker_region
+    staging_location           = "gs://${google_storage_bucket.dataflow_bucket.name}/staging"
+    temp_location              = "gs://${google_storage_bucket.dataflow_temp.name}"
   }
 
   depends_on = [
@@ -171,10 +173,12 @@ output "dataflow_config" {
     service_account_email      = google_service_account.dataflow_runner.email
     input_topic                = "projects/${var.gcp_project_id}/topics/${var.incoming_topic_name}"
     output_notifications_topic = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
-    output_location_topic      = "projects/${var.gcp_project_id}/topics/${var.location_data_topic_name}"
-    firestore_project          = var.gcp_project_id
+    project_id                 = var.gcp_project_id
     firestore_database         = var.firestore_database_name
     firestore_collection       = var.firestore_locations_collection
+    bq_dataset                 = google_bigquery_dataset.bqdataset.dataset_id
+    bq_table                   = google_bigquery_table.table.table_id
+    db_host                    = google_sql_database_instance.main.public_ip_address
     max_workers                = var.dataflow_max_workers
   }
 
