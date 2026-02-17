@@ -34,12 +34,6 @@ variable "notifications_topic_name" {
   default     = "notifications"
 }
 
-variable "location_data_topic_name" {
-  description = "Name of the processed location data topic"
-  type        = string
-  default     = "processed-location-data"
-}
-
 variable "zone_data_topic_name" {
   description = "Name of the zone data topic"
   type        = string

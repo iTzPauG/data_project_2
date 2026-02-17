@@ -12,8 +12,7 @@ This Terraform configuration creates and manages all cloud infrastructure needed
 │                                                     │
 │  Pub/Sub Topics & Subscriptions                    │
 │  ├─ incoming-location-data (7-day retention)       │
-│  ├─ notifications                                   │
-│  └─ processed-location-data                        │
+│  ├─ notifications                                  │
 │           ↓                                         │
 │  Service Account: dataflow-runner                  │
 │  ├─ roles/dataflow.worker                          │
@@ -33,12 +32,14 @@ This Terraform configuration creates and manages all cloud infrastructure needed
 ## Architecture Components
 
 ### Pub/Sub
+
 - **Topics**: 3 topics for incoming data, notifications, and processed locations
 - **Subscriptions**: Push subscriptions for each topic with 60-second ack deadline
 - **Message Retention**: 7 days for incoming data, default for others
 - **Use Case**: Message broker between data sources and Dataflow pipeline
 
 ### Firestore
+
 - **Database**: FIRESTORE_NATIVE mode (native Firestore, not Datastore)
 - **Region**: europe-southwest1
 - **Collections**: locations (auto-created on first write), metadata
@@ -47,6 +48,7 @@ This Terraform configuration creates and manages all cloud infrastructure needed
 - **Advantages**: Serverless, schema-less, real-time capable
 
 ### Dataflow
+
 - **Service Account**: Dedicated service account with minimal permissions
 - **GCS Buckets**: Staging (templates) and temporary (processing)
 - **Runner**: Google Cloud Dataflow managed service
@@ -54,6 +56,7 @@ This Terraform configuration creates and manages all cloud infrastructure needed
 - **Auto-scaling**: Enabled with configurable max workers
 
 ### IAM & Security
+
 - Service account with principle of least privilege
 - Minimal required IAM roles:
   - `roles/dataflow.worker` - Run Dataflow jobs
@@ -141,6 +144,7 @@ terraform init
 ```
 
 This will:
+
 - Download required providers (Google provider v6.0+)
 - Create the backend GCS bucket (if using `-reconfigure`)
 - Set up Terraform state management
@@ -156,6 +160,7 @@ terraform plan
 ```
 
 Review the plan carefully. It should show approximately:
+
 - 1 Firestore database
 - 3 Pub/Sub topics + 3 subscriptions
 - 1 Service account + 5 IAM role bindings
@@ -186,6 +191,7 @@ terraform output dataflow_service_account_email
 ```
 
 **Important Outputs:**
+
 - `firestore_database_name` - Firestore database name
 - `dataflow_service_account_email` - Service account email for pipeline deployment
 - `dataflow_staging_bucket` - GCS bucket for pipeline files
@@ -195,50 +201,53 @@ terraform output dataflow_service_account_email
 
 ### Main Variables (`terraform.tfvars`)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `gcp_project_id` | `your-project-id` | Your GCP project ID (REQUIRED) |
-| `gcp_region` | `europe-southwest1` | GCP region for all resources |
-| `environment` | `prod` | Environment label (prod/staging/dev) |
+| Variable         | Default             | Description                          |
+| ---------------- | ------------------- | ------------------------------------ |
+| `gcp_project_id` | `your-project-id`   | Your GCP project ID (REQUIRED)       |
+| `gcp_region`     | `europe-southwest1` | GCP region for all resources         |
+| `environment`    | `prod`              | Environment label (prod/staging/dev) |
 
 ### Pub/Sub Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `incoming_topic_name` | `incoming-location-data` | Topic for incoming location data |
-| `message_retention_days` | `7` | Message retention period in days |
-| `notifications_topic_name` | `notifications` | Topic for processing notifications |
-| `location_data_topic_name` | `processed-location-data` | Topic for processed locations |
+| Variable                   | Default                   | Description                        |
+| -------------------------- | ------------------------- | ---------------------------------- |
+| `incoming_topic_name`      | `incoming-location-data`  | Topic for incoming location data   |
+| `message_retention_days`   | `7`                       | Message retention period in days   |
+| `notifications_topic_name` | `notifications`           | Topic for processing notifications |
+| `location_data_topic_name` | `processed-location-data` | Topic for processed locations      |
 
 ### Firestore Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `firestore_database_name` | `location-db` | Firestore database name |
-| `firestore_locations_collection` | `locations` | Collection for location data |
-| `firestore_metadata_collection` | `metadata` | Collection for metadata |
+| Variable                         | Default       | Description                  |
+| -------------------------------- | ------------- | ---------------------------- |
+| `firestore_database_name`        | `location-db` | Firestore database name      |
+| `firestore_locations_collection` | `locations`   | Collection for location data |
+| `firestore_metadata_collection`  | `metadata`    | Collection for metadata      |
 
 ### Dataflow Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `dataflow_max_workers` | `10` | Maximum number of Dataflow workers |
-| `dataflow_service_account_name` | `dataflow-runner` | Service account name |
+| Variable                        | Default           | Description                        |
+| ------------------------------- | ----------------- | ---------------------------------- |
+| `dataflow_max_workers`          | `10`              | Maximum number of Dataflow workers |
+| `dataflow_service_account_name` | `dataflow-runner` | Service account name               |
 
 ## Deployed Resources
 
 ### Pub/Sub
+
 - **Topic**: `incoming-location-data` (7-day message retention)
 - **Topic**: `notifications`
 - **Topic**: `processed-location-data`
 - **Subscriptions**: One per topic with 60-second ack deadline
 
 ### Firestore
+
 - **Database ID**: `location-db` in region `europe-southwest1`
 - **Type**: FIRESTORE_NATIVE
 - **Collections**: `locations`, `metadata` (auto-created on first write)
 
 ### Service Account
+
 - **Email**: `dataflow-runner@{project-id}.iam.gserviceaccount.com`
 - **Roles**:
   - `roles/dataflow.worker` - Run Dataflow jobs
@@ -248,6 +257,7 @@ terraform output dataflow_service_account_email
   - `roles/storage.objectViewer` - Read GCS objects
 
 ### Cloud Storage
+
 - **Staging Bucket**: `{project-id}-dataflow-staging`
   - Purpose: Store pipeline code and templates
   - Versioning: Enabled
@@ -365,13 +375,13 @@ message_retention_days = 7         # Full retention
 
 ### Cost Breakdown (100k locations/day)
 
-| Service | Monthly Cost |
-|---------|--------------|
-| Dataflow | $30-50 (varies with workers) |
-| Pub/Sub | ~$15 (ingress/egress) |
-| Firestore | $5-20 (operations) |
-| Cloud Storage | ~$1-2 |
-| **Total** | **~$50-85** |
+| Service       | Monthly Cost                 |
+| ------------- | ---------------------------- |
+| Dataflow      | $30-50 (varies with workers) |
+| Pub/Sub       | ~$15 (ingress/egress)        |
+| Firestore     | $5-20 (operations)           |
+| Cloud Storage | ~$1-2                        |
+| **Total**     | **~$50-85**                  |
 
 **Firestore Advantages**: No fixed instance costs like Cloud SQL
 
@@ -562,6 +572,7 @@ gsutil iam ch serviceAccount:terraform@project.iam.gserviceaccount.com:objectAdm
 ### IAM Principle of Least Privilege
 
 Service account has only required permissions:
+
 - ✅ Dataflow operations
 - ✅ Pub/Sub access
 - ✅ Firestore operations
@@ -647,6 +658,7 @@ terraform destroy -target=google_pubsub_topic.notifications
 ## Support & Issues
 
 For issues:
+
 1. Check Terraform logs: `TF_LOG=DEBUG terraform plan`
 2. Verify GCP permissions: `gcloud projects get-iam-policy YOUR_PROJECT_ID`
 3. Check GCP quotas: Google Cloud Console → APIs & Services → Quotas

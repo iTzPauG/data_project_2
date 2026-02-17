@@ -3,9 +3,9 @@
   "description": "Reads location data from Pub/Sub, checks zone matches, saves to Firestore, writes to BigQuery, and publishes to output topics.",
   "parameters": [
     {
-      "name": "input_topic",
-      "label": "Input Pub/Sub topic",
-      "helpText": "Full Pub/Sub topic path for incoming location data (projects/<project>/topics/<topic>).",
+      "name": "input_subscription",
+      "label": "Input Pub/Sub subscription",
+      "helpText": "Full Pub/Sub subscription path for incoming location data (projects/<project>/subscriptions/<subscription>).",
       "isOptional": false
     },
     {
@@ -15,15 +15,9 @@
       "isOptional": false
     },
     {
-      "name": "output_location_topic",
-      "label": "Processed location Pub/Sub topic",
-      "helpText": "Full Pub/Sub topic path for processed location data.",
-      "isOptional": false
-    },
-    {
-      "name": "firestore_project",
-      "label": "Firestore project ID",
-      "helpText": "GCP project ID where Firestore resides.",
+      "name": "project_id",
+      "label": "GCP project ID",
+      "helpText": "GCP project ID used for Firestore and BigQuery.",
       "isOptional": false
     },
     {
@@ -39,17 +33,11 @@
       "isOptional": false
     },
     {
-      "name": "zones_collection",
-      "label": "Firestore zones collection",
-      "helpText": "Firestore collection for restricted zones.",
+      "name": "zones_sql",
+      "label": "Zones SQL table",
+      "helpText": "Cloud SQL table name for restricted zones.",
       "isOptional": true,
       "defaultValue": "zones"
-    },
-    {
-      "name": "bq_project",
-      "label": "BigQuery project ID",
-      "helpText": "GCP project ID for BigQuery.",
-      "isOptional": false
     },
     {
       "name": "bq_dataset",
@@ -61,6 +49,30 @@
       "name": "bq_table",
       "label": "BigQuery table name",
       "helpText": "BigQuery table name for location history.",
+      "isOptional": false
+    },
+    {
+      "name": "db_host",
+      "label": "Cloud SQL host",
+      "helpText": "Public IP address of the Cloud SQL instance.",
+      "isOptional": false
+    },
+    {
+      "name": "db_name",
+      "label": "Cloud SQL database name",
+      "helpText": "Name of the database within the Cloud SQL instance.",
+      "isOptional": false
+    },
+    {
+      "name": "db_user",
+      "label": "Cloud SQL user",
+      "helpText": "Username for the Cloud SQL database.",
+      "isOptional": false
+    },
+    {
+      "name": "db_pass",
+      "label": "Cloud SQL password",
+      "helpText": "Password for the Cloud SQL user.",
       "isOptional": false
     }
   ]

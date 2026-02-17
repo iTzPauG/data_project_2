@@ -102,8 +102,7 @@ Test your pipeline locally without deploying to Dataflow:
 ```bash
 python location_pipeline.py \
   --input_topic=projects/YOUR_PROJECT_ID/topics/incoming-location-data \
-  --output_notifications_topic=projects/YOUR_PROJECT_ID/topics/notifications \
-  --output_location_topic=projects/YOUR_PROJECT_ID/topics/processed-location-data \
+  --output_notifications_topic=projects/YOUR_PROJECT_ID/topics/notifications \  
   --firestore_project=YOUR_PROJECT_ID \
   --firestore_database=location-db \
   --firestore_collection=locations \
@@ -163,7 +162,6 @@ gcloud dataflow jobs run location-streaming-pipeline \
   gs://$STAGING_BUCKET/templates/location_pipeline.py \
   --input_topic=projects/$PROJECT_ID/topics/incoming-location-data \
   --output_notifications_topic=projects/$PROJECT_ID/topics/notifications \
-  --output_location_topic=projects/$PROJECT_ID/topics/processed-location-data \
   --firestore_project=$PROJECT_ID \
   --firestore_database=location-db \
   --firestore_collection=locations
@@ -186,7 +184,6 @@ When deploying, provide these parameters:
 |-----------|-------------|---------|
 | `input_topic` | Input Pub/Sub topic | `projects/proj-id/topics/incoming-location-data` |
 | `output_notifications_topic` | Notifications output topic | `projects/proj-id/topics/notifications` |
-| `output_location_topic` | Processed locations output topic | `projects/proj-id/topics/processed-location-data` |
 | `firestore_project` | GCP project ID | `my-project-id` |
 | `firestore_database` | Firestore database name | `location-db` |
 | `firestore_collection` | Firestore collection name | `locations` |
@@ -311,7 +308,6 @@ $(gcloud beta emulators pubsub env-init)
 python location_pipeline.py \
   --input_topic=projects/test-project/topics/incoming-location-data \
   --output_notifications_topic=projects/test-project/topics/notifications \
-  --output_location_topic=projects/test-project/topics/processed-location-data \
   --firestore_project=test-project \
   --firestore_database=location-db \
   --firestore_collection=locations \

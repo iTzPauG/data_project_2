@@ -215,12 +215,12 @@ class SaveLastLocationToFirestoreFn(beam.DoFn):
 
 
 def run(argv=None):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--db_user', required=True, help='Cloud SQL user')
     parser.add_argument('--db_pass', required=True, help='Cloud SQL password')
     parser.add_argument('--db_name', required=True, help='Cloud SQL database name')
     parser.add_argument('--db_host', required=True, help='Cloud SQL host')
-    parser.add_argument('--input_topic', required=True)
+    parser.add_argument('--input_subscription', required=True)
     parser.add_argument('--output_notifications_topic', required=True)
     parser.add_argument('--project_id', required=True, help='GCP project ID')
     parser.add_argument('--firestore_database', required=True)
@@ -239,7 +239,7 @@ def run(argv=None):
     # 1. Read from Pub/Sub and parse
     locations = (
         pipeline
-        | 'Read from Pub/Sub' >> ReadFromPubSub(topic=known_args.input_topic)
+        | 'Read from Pub/Sub' >> ReadFromPubSub(subscription=known_args.input_subscription)
         | 'Parse Location Data' >> beam.ParDo(ParseLocationDataFn())
     )
 
@@ -259,7 +259,7 @@ def run(argv=None):
     # 2b. Guardar historial de ubicaciones en BigQuery
     (
         locations
-        | 'LocationData to Dict' >> beam.Map(lambda loc: loc.to_json())
+        | 'LocationData to Dict' >> beam.Map(lambda loc: loc.to_dict())
         | 'Write to BigQuery' >> WriteToBigQuery(
             table=f"{known_args.project_id}:{known_args.bq_dataset}.{known_args.bq_table}",
             schema='timestamp:TIMESTAMP,user_id:STRING,latitude:FLOAT,longitude:FLOAT',
@@ -275,7 +275,7 @@ def run(argv=None):
             CheckZoneMatchFn(
                 firestore_project=known_args.project_id,
                 firestore_database=known_args.firestore_database,
-                zones_collection=known_args.zones_collection
+                zones_collection=known_args.zones_sql
             )
         ).with_outputs('match', 'no_match')
     )
