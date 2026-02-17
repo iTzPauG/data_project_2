@@ -15,9 +15,9 @@ resource "google_project_iam_member" "zone_data_function_sql_client" {
 resource "local_file" "zone_data_function_requirements" {
   filename = "../dataflow-pipeline/requirements.txt"
   content  = <<-EOT
-psycopg2
+psycopg2-binary
 google-cloud-secret-manager
-google-cloud-firestore
+google-cloud-firestore==2.14.0
 EOT
 }
 
@@ -30,16 +30,16 @@ resource "archive_file" "zone_data_function_zip" {
     filename = "main.py"
   }
   source {
-    content  = file("../dataflow-pipeline/requirements.txt")
+    content  = local_file.zone_data_function_requirements.content
     filename = "requirements.txt"
   }
-  excludes    = ["*.zip"]
-  depends_on  = [local_file.zone_data_function_requirements]
+  excludes   = ["*.zip"]
+  depends_on = [local_file.zone_data_function_requirements]
 }
 # Cloud Function Gen 2 para procesar zone data
 resource "google_storage_bucket" "zone_data_function_code" {
-  name     = "${var.cloudsql_instance_name}-zone-data-function-code"
-  location = var.gcp_region
+  name          = "${var.cloudsql_instance_name}-zone-data-function-code"
+  location      = var.gcp_region
   force_destroy = true
 }
 
@@ -69,18 +69,18 @@ resource "google_cloudfunctions2_function" "zone_data_to_sql" {
     available_memory   = "256M"
     timeout_seconds    = 180
     environment_variables = {
-      DB_USER    = var.cloudsql_user
-      DB_PASS    = var.cloudsql_password
-      DB_NAME    = var.cloudsql_db_name
-      DB_HOST    = google_sql_database_instance.main.public_ip_address
+      DB_USER     = var.cloudsql_user
+      DB_PASS     = var.cloudsql_password
+      DB_NAME     = var.cloudsql_db_name
+      DB_HOST     = google_sql_database_instance.main.public_ip_address
       GCP_PROJECT = var.gcp_project_id
     }
     service_account_email = google_service_account.zone_data_function.email
   }
   event_trigger {
-    event_type = "google.cloud.pubsub.topic.v1.messagePublished"
+    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
     trigger_region = var.gcp_region
-    pubsub_topic = "projects/${var.gcp_project_id}/topics/zone-data"
+    pubsub_topic   = "projects/${var.gcp_project_id}/topics/zone-data"
   }
 }
 
@@ -92,7 +92,7 @@ resource "google_sql_database_instance" "main" {
   region           = var.gcp_region
 
   settings {
-    tier = "db-f1-micro" # Basic, smallest tier for frequent but light queries
+    tier              = "db-f1-micro" # Basic, smallest tier for frequent but light queries
     availability_type = "ZONAL"
     backup_configuration {
       enabled = true

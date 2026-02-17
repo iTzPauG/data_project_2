@@ -103,3 +103,6 @@ staging/
 temp/
 
 randomtracker/cache/**
+
+randomtracker/templates/**
+randomtracker/live_tracking.csv
