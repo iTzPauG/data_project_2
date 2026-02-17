@@ -8,7 +8,6 @@ environment = "prod"
 incoming_topic_name      = "incoming-location-data"
 message_retention_days   = 7
 notifications_topic_name = "notifications"
-location_data_topic_name = "processed-location-data"
 
 zone_data_topic_name = "zone-data"
 

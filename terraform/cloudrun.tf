@@ -20,8 +20,9 @@ resource "google_project_iam_member" "cloud_run_pubsub_publisher" {
 
 # Cloud Run service
 resource "google_cloud_run_v2_service" "api" {
-  name     = var.cloud_run_service_name
-  location = var.gcp_region
+  name                = var.cloud_run_service_name
+  location            = var.gcp_region
+  deletion_protection = false
 
   template {
     service_account = google_service_account.cloud_run_sa.email
