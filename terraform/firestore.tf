@@ -26,7 +26,6 @@ output "firestore_collections" {
   value = {
     locations  = var.firestore_locations_collection
     metadata   = var.firestore_metadata_collection
-    zones      = var.firestore_zones_collection
   }
 }
 
