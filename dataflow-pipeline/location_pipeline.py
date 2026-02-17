@@ -66,13 +66,13 @@ class LocationData:
 
 
 class ParseLocationDataFn(beam.DoFn):
-    """Parse JSON bytes into LocationData objects."""
+    """Parse JSON bytes into location dicts."""
 
     def process(self, element: bytes):
         try:
             location = LocationData.from_json(element.decode('utf-8'))
             if -90 <= location.latitude <= 90 and -180 <= location.longitude <= 180:
-                yield location
+                yield location.to_dict()
             else:
                 logging.getLogger(__name__).warning(
                     f"Invalid coordinates: lat={location.latitude}, lon={location.longitude}"
@@ -143,21 +143,21 @@ class CheckZoneMatchFn(beam.DoFn):
                 return zone
         return None
 
-    def process(self, location: LocationData):
+    def process(self, location: dict):
         try:
-            violated_zone = self._query_nearby_zones(location.latitude, location.longitude)
+            violated_zone = self._query_nearby_zones(location['latitude'], location['longitude'])
 
             if violated_zone:
                 distance = haversine_distance(
-                    location.latitude, location.longitude,
+                    location['latitude'], location['longitude'],
                     violated_zone['latitude'], violated_zone['longitude']
                 )
                 notification = json.dumps({
                     'status': 'zone_violation',
-                    'user_id': location.user_id,
-                    'latitude': location.latitude,
-                    'longitude': location.longitude,
-                    'timestamp': location.timestamp,
+                    'user_id': location['user_id'],
+                    'latitude': location['latitude'],
+                    'longitude': location['longitude'],
+                    'timestamp': location['timestamp'],
                     'zone_radius': violated_zone.get('radius', 50),
                     'distance_meters': round(distance, 2),
                 })
@@ -165,10 +165,10 @@ class CheckZoneMatchFn(beam.DoFn):
             else:
                 notification = json.dumps({
                     'status': 'no_match',
-                    'user_id': location.user_id,
-                    'latitude': location.latitude,
-                    'longitude': location.longitude,
-                    'timestamp': location.timestamp,
+                    'user_id': location['user_id'],
+                    'latitude': location['latitude'],
+                    'longitude': location['longitude'],
+                    'timestamp': location['timestamp'],
                 })
                 yield beam.pvalue.TaggedOutput('no_match', notification)
 
@@ -193,17 +193,17 @@ class SaveLastLocationToFirestoreFn(beam.DoFn):
         from google.cloud import firestore
         self._db = firestore.Client(project=self.project, database=self.database)
 
-    def process(self, location: LocationData):
+    def process(self, location: dict):
         try:
-            doc_data = location.to_dict()
+            doc_data = dict(location)
             doc_data['updated_at'] = datetime.now().isoformat()
 
             # Use user_id as document ID so only last location is kept
-            doc_ref = self._db.collection(self.collection).document(location.user_id)
+            doc_ref = self._db.collection(self.collection).document(location['user_id'])
             doc_ref.set(doc_data)
 
             logging.getLogger(__name__).info(
-                f"Saved last location for user {location.user_id}"
+                f"Saved last location for user {location['user_id']}"
             )
             yield location
         except Exception as e:
@@ -253,13 +253,13 @@ def run(argv=None):
                 collection=known_args.firestore_collection
             )
         )
-        | 'Format Location JSON' >> beam.Map(lambda loc: loc.to_json())
+        | 'Format Location JSON' >> beam.Map(lambda loc: json.dumps(loc))
     )
 
     # 2b. Guardar historial de ubicaciones en BigQuery
     (
         locations
-        | 'LocationData to Dict' >> beam.Map(lambda loc: loc.to_dict())
+        | 'LocationData to Dict' >> beam.Map(lambda loc: loc)
         | 'Write to BigQuery' >> WriteToBigQuery(
             table=f"{known_args.project_id}:{known_args.bq_dataset}.{known_args.bq_table}",
             schema='timestamp:TIMESTAMP,user_id:STRING,latitude:FLOAT,longitude:FLOAT',

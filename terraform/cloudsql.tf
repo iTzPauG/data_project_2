@@ -15,9 +15,9 @@ resource "google_project_iam_member" "zone_data_function_sql_client" {
 resource "local_file" "zone_data_function_requirements" {
   filename = "../dataflow-pipeline/requirements.txt"
   content  = <<-EOT
-psycopg2
+psycopg2-binary
 google-cloud-secret-manager
-google-cloud-firestore
+google-cloud-firestore==2.14.0
 EOT
 }
 
