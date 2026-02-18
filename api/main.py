@@ -3,9 +3,10 @@
 import json
 import os
 from datetime import datetime
-from typing import Optional, Union
+from typing import Optional, Union, List
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect 
+from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import pubsub_v1
 from pydantic import BaseModel, field_validator
 

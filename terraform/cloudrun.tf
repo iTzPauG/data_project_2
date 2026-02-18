@@ -25,6 +25,11 @@ resource "google_cloud_run_v2_service" "api" {
   deletion_protection = false
 
   template {
+    # Inyectamos el hash del ZIP como anotación; si el código cambia, el hash cambia y fuerza una nueva revisión.
+    annotations = {
+      "force-update" = data.archive_file.api_source.output_md5
+    }
+
     service_account = google_service_account.cloud_run_sa.email
 
     containers {

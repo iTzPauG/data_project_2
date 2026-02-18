@@ -44,15 +44,22 @@ resource "terraform_data" "api_image_build" {
     data.archive_file.api_source.output_md5
   ]
 
+  # Descomentar para Windows
   provisioner "local-exec" {
-    command = <<-EOT
-      gcloud builds submit \
-        "gs://${google_storage_bucket.api_source.name}/${google_storage_bucket_object.api_source.name}" \
-        --tag "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/api:latest" \
-        --project "${var.gcp_project_id}" \
-        --quiet
-    EOT
+    # Hemos quitado todas las \" porque en Windows confunden a gcloud si no hay espacios
+    command = "gcloud builds submit gs://${google_storage_bucket.api_source.name}/${google_storage_bucket_object.api_source.name} --tag ${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/api:latest --project ${var.gcp_project_id} --quiet"
   }
+
+  # Descomentar para Linux y Mac
+  # provisioner "local-exec" {
+  #   command = <<-EOT
+  #     gcloud builds submit \
+  #       "gs://${google_storage_bucket.api_source.name}/${google_storage_bucket_object.api_source.name}" \
+  #       --tag "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/api:latest" \
+  #       --project "${var.gcp_project_id}" \
+  #       --quiet
+  #   EOT
+  # }
 
   depends_on = [
     google_storage_bucket_object.api_source,
