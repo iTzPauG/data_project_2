@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from google.cloud import bigquery, firestore, pubsub_v1
 
 # ---------------------------------------------------------------------------
@@ -72,12 +72,22 @@ def get_sub_client() -> pubsub_v1.SubscriberClient:
 
 app = FastAPI(title="Location Dashboard")
 
-FRONTEND_PATH = Path(__file__).parent.parent / "frontend" / "index.html"
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 
 @app.get("/")
-async def serve_frontend():
-    return HTMLResponse(FRONTEND_PATH.read_text())
+async def serve_index():
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get("/style.css")
+async def serve_css():
+    return FileResponse(FRONTEND_DIR / "style.css", media_type="text/css")
+
+
+@app.get("/app.js")
+async def serve_js():
+    return FileResponse(FRONTEND_DIR / "app.js", media_type="application/javascript")
 
 
 # ---------------------------------------------------------------------------
