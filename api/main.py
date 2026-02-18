@@ -132,9 +132,16 @@ async def publish_location(data: LocationRequest):
         try:
             topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_LOCATION_TOPIC)
             future = get_publisher().publish(topic_path, json.dumps(message_dict).encode("utf-8"))
-            # future.result() # Opcional: esperar confirmación (puede añadir latencia)
+            
+            message_id = future.result()
+            print(f"Mensaje enviado con ID: {message_id}")
         except Exception as e:
-            print(f"Error PubSub: {e}")
+            print(f"ERROR CRÍTICO PUBSUB: {e}")
+            # Esto devuelve un error 500 al cliente en lugar de un 200 OK falso
+            raise HTTPException(status_code=500, detail=f"PubSub Error: {str(e)}")
+    else:
+        print("ERROR: GCP_PROJECT_ID no está configurado en las variables de entorno")
+        raise HTTPException(status_code=500, detail="Configuration Error: GCP_PROJECT_ID missing")
     
     # B) ENVIAR A WEBSOCKET (Para React en Tiempo Real)
     await manager.broadcast(message_dict)
