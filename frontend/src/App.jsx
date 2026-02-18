@@ -9,7 +9,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 // URL del WebSocket de tu API (FastAPI)
 // NOTA: Si estás en local usa 'ws://localhost:8000/ws/locations'
 // Si estás en Cloud Run usa 'wss://tu-url-de-cloud-run.app/ws/locations'
-const WS_URL = 'ws://localhost:8000/ws/locations';
+const WS_URL = 'ws://api-787549761080.europe-west6.run.app/ws/locations';
 
 const INITIAL_VIEW_STATE = {
   longitude: -0.376288, // Valencia Centro
