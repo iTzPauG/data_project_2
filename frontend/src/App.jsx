@@ -11,11 +11,11 @@ import { db } from "./firebase";
 // --- 1. CONFIGURACIÓN ---
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-// Usamos localhost para evitar el error CORS de Cloud Run por ahora
+// API de Cloud Run (Asegúrate de haber subido la versión de main.py actualizada)
 const API_URL = 'http://api-787549761080.europe-west6.run.app'; 
 
 // ⚠️ CONFIRMA QUE ESTE ID ES EL QUE QUIERES SEGUIR
-const TARGET_USER_ID = "91"; 
+const TARGET_USER_ID = "2"; 
 const COLLECTION_NAME = "locations"; 
 
 const INITIAL_VIEW_STATE = {
@@ -26,7 +26,7 @@ const INITIAL_VIEW_STATE = {
   bearing: 0
 };
 
-// Zonas estáticas (opcional)
+// Zonas estáticas (opcional, lo dejamos por si te sirve de referencia)
 const ZONA_ESTATICA = [
   {
     polygon: [
@@ -51,14 +51,22 @@ function App() {
 
   // --- 3. EFECTOS ---
 
-  // A) Cargar Zonas (API)
+  // A) Cargar Zonas (API) y Filtrar por TARGET_USER_ID
   useEffect(() => {
     axios.get(`${API_URL}/zones`)
-      .then(res => setZonasSQL(res.data))
-      .catch(err => console.log("Info: API Zonas no disponible (ignorando por ahora)"));
+      .then(res => {
+        // Filtramos para quedarnos SOLO con las zonas del niño que estamos vigilando ("98")
+        const zonasDelUsuario = res.data.filter(
+          zona => String(zona.user_id) === String(TARGET_USER_ID)
+        );
+        
+        setZonasSQL(zonasDelUsuario);
+        console.log(`Zonas cargadas para el usuario ${TARGET_USER_ID}:`, zonasDelUsuario);
+      })
+      .catch(err => console.log("Info: API Zonas no disponible o fallo de CORS.", err));
   }, []);
 
-  // B) --- EL CHIVATO DE FIREBASE ---
+  // B) --- EL CHIVATO DE FIREBASE (Ubicación en tiempo real) ---
   useEffect(() => {
     console.log(`%c🔥 [DEBUG] INICIANDO RASTREO:`, 'color: orange; font-weight: bold; font-size: 14px');
     
@@ -126,47 +134,55 @@ function App() {
       getLineWidth: 2,
     }),
 
-    // Capa 2: Zonas SQL (Azul transparente)
+    // Capa 2: Zonas Restringidas del Usuario (ROJAS y TAMAÑO DINÁMICO)
     new ScatterplotLayer({
       id: 'zonas-sql',
-      data: zonasSQL,
+      data: zonasSQL, // Zonas ya filtradas para el usuario 98
       pickable: true,
       stroked: true,
       filled: true,
-      radiusScale: 1,
-      getPosition: d => [d.longitude, d.latitude],
-      getRadius: 50, // Radio fijo para verlas bien
-      getFillColor: [0, 110, 255, 50], 
-      getLineColor: [0, 80, 200, 255],
+      
+      // Parseamos coordenadas y radio
+      getPosition: d => [parseFloat(d.longitude), parseFloat(d.latitude)],
+      getRadius: d => parseFloat(d.radius), 
+      
+      // Indicamos que el radio viene en Metros Reales
+      radiusUnits: 'meters', 
+      
+      // Color Rojo Alerta
+      getFillColor: [255, 0, 0, 80], 
+      getLineColor: [255, 0, 0, 255], 
+      
+      // Borde fijo en pantalla para que se vea bien
+      lineWidthUnits: 'pixels',
       getLineWidth: 2
     }),
 
-    // Capa 3: EL USUARIO (CORREGIDO)
+    // Capa 3: EL USUARIO VIVO (TAMAÑO FIJO EN PANTALLA)
     ubicacionUsuario && new ScatterplotLayer({
       id: 'usuario-vivo',
       data: [ubicacionUsuario],
       pickable: true,
       stroked: true,
       filled: true,
-      radiusScale: 1,
       getPosition: d => [d.longitude, d.latitude],
       
-      // --- TAMAÑO REALISTA ---
-      getRadius: 1,       // 1 metro de radio (tamaño persona)
-      radiusMinPixels: 4, // Mínimo 4px en pantalla para que no desaparezca al alejarte
-      radiusMaxPixels: 15,
+      // Tamaño fijo en píxeles (No desaparece al hacer zoom)
+      radiusUnits: 'pixels',
+      getRadius: 8, 
 
-      // --- ESTILO GPS (Azul con borde blanco) ---
-      getFillColor: [66, 133, 244, 255], // Azul Google
-      getLineColor: [255, 255, 255, 255], // Borde Blanco
-      getLineWidth: 2,
+      // Estilo GPS (Azul Google)
+      getFillColor: [66, 133, 244, 255], 
+      getLineColor: [255, 255, 255, 255], 
+      lineWidthUnits: 'pixels',
+      getLineWidth: 3,
 
-      // --- ANIMACIÓN ---
+      // Animación suave
       transitions: {
-        getPosition: 1000 // Suaviza el movimiento (1 segundo)
+        getPosition: 1000 
       },
 
-      // --- FORZAR REPINTADO ---
+      // Forzar repintado si cambian coordenadas
       updateTriggers: {
         getPosition: [ubicacionUsuario.latitude, ubicacionUsuario.longitude]
       }
