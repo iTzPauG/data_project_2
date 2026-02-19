@@ -146,3 +146,25 @@ variable "cloud_run_allow_unauthenticated" {
   type        = bool
   default     = true
 }
+
+# GitHub Variables (for CI/CD)
+variable "github_owner" {
+  description = "GitHub username or organization"
+  type        = string
+}
+
+variable "github_repo_name" {
+  description = "GitHub repository name (without owner)"
+  type        = string
+}
+
+variable "github_app_installation_id" {
+  description = "GitHub App installation ID for Cloud Build. Get it from: https://github.com/settings/installations"
+  type        = number
+}
+
+variable "github_oauth_token" {
+  description = "GitHub OAuth token for Cloud Build v2 connection"
+  type        = string
+  sensitive   = true
+}
