@@ -1,4 +1,9 @@
 # =============================================================================
+# Generate a random password for Cloud SQL user
+resource "random_password" "cloudsql_password" {
+  length  = 16
+  special = true
+}
 # SERVICE ACCOUNTS FOR CLOUD FUNCTIONS
 # =============================================================================
 
@@ -102,7 +107,7 @@ resource "google_cloudfunctions2_function" "zone_data_to_sql" {
     timeout_seconds    = 180
     environment_variables = {
       DB_USER     = var.cloudsql_user
-      DB_PASS     = var.cloudsql_password
+      DB_PASS     = random_password.cloudsql_password.result
       DB_NAME     = var.cloudsql_db_name
       DB_HOST     = google_sql_database_instance.main.public_ip_address
       GCP_PROJECT = var.gcp_project_id
@@ -162,7 +167,7 @@ resource "google_cloudfunctions2_function" "user_data_to_sql" {
     timeout_seconds    = 180
     environment_variables = {
       DB_USER     = var.cloudsql_user
-      DB_PASS     = var.cloudsql_password
+      DB_PASS     = random_password.cloudsql_password.result
       DB_NAME     = var.cloudsql_db_name
       DB_HOST     = google_sql_database_instance.main.public_ip_address
       GCP_PROJECT = var.gcp_project_id
@@ -222,7 +227,7 @@ resource "google_cloudfunctions2_function" "kids_data_to_sql" {
     timeout_seconds    = 180
     environment_variables = {
       DB_USER     = var.cloudsql_user
-      DB_PASS     = var.cloudsql_password
+      DB_PASS     = random_password.cloudsql_password.result
       DB_NAME     = var.cloudsql_db_name
       DB_HOST     = google_sql_database_instance.main.public_ip_address
       GCP_PROJECT = var.gcp_project_id
@@ -271,7 +276,7 @@ resource "google_sql_database" "default" {
 resource "google_sql_user" "default" {
   name     = var.cloudsql_user
   instance = google_sql_database_instance.main.name
-  password = var.cloudsql_password
+  password = random_password.cloudsql_password.result
 }
 
 output "cloudsql_instance_connection_name" {

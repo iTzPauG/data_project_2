@@ -137,7 +137,7 @@ resource "google_dataflow_flex_template_job" "location_pipeline" {
     db_host                    = google_sql_database_instance.main.public_ip_address
     db_name                    = var.cloudsql_db_name
     db_user                    = var.cloudsql_user
-    db_pass                    = var.cloudsql_password
+    db_pass                    = random_password.cloudsql_password.result
     bq_dataset                 = google_bigquery_dataset.bqdataset.dataset_id
     bq_table                   = google_bigquery_table.table.table_id
   }
