@@ -39,7 +39,6 @@ export default function App() {
   // Estados Pop-Up Añadir Zona (Mini-Mapa)
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [miniMapViewState, setMiniMapViewState] = useState(INITIAL_VIEW_STATE);
-  // MODIFICADO: Radio por defecto a 50 metros
   const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "" });
 
   // --- 3. EFECTOS ---
@@ -111,9 +110,17 @@ export default function App() {
     });
 
     setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: TARGET_USER_ID }]);
-    // MODIFICADO: Vuelve a 50 metros tras guardar
     setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "" });
     setShowZoneModal(false);
+  };
+
+  // Controles de Zoom Manual
+  const handleZoomIn = () => {
+    setViewState(prev => ({ ...prev, zoom: prev.zoom + 1, transitionDuration: 300 }));
+  };
+
+  const handleZoomOut = () => {
+    setViewState(prev => ({ ...prev, zoom: prev.zoom - 1, transitionDuration: 300 }));
   };
 
   // --- 5. CAPAS MAPA PRINCIPAL ---
@@ -143,6 +150,10 @@ export default function App() {
   const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 };
   const modalContentStyle = { backgroundColor: '#212529', padding: '30px', borderRadius: '16px', width: '800px', boxShadow: '0 15px 40px rgba(0,0,0,0.5)', color: '#f8f9fa', fontFamily: 'sans-serif', border: '1px solid #495057' };
   const inputStyle = { width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #495057', backgroundColor: '#343a40', color: '#fff', fontSize: '16px', boxSizing: 'border-box', outline: 'none' };
+
+  // Estilos de los botones de Zoom
+  const zoomControlStyle = { position: 'absolute', bottom: '30px', right: '30px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10 };
+  const zoomButtonStyle = { width: '45px', height: '45px', backgroundColor: '#343a40', color: '#f8f9fa', border: '1px solid #495057', borderRadius: '12px', fontSize: '24px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' };
 
   return (
     <div style={appContainerStyle}>
@@ -193,7 +204,6 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '14px' }}>
               <span>Radio: <strong style={{ color: '#10b981' }}>{nuevaZona.radius}m</strong></span>
             </div>
-            {/* MODIFICADO: Rango de 20 a 200 con saltos de 10 */}
             <input 
               type="range" 
               min="20" 
@@ -241,6 +251,26 @@ export default function App() {
             <button key={kid.tag_id} onClick={() => setSelectedKidTag(kid.tag_id)} style={{ padding: '10px 20px', borderRadius: '25px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: selectedKidTag === kid.tag_id ? '#3b82f6' : '#212529', color: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', transition: 'background 0.2s' }}>{kid.name}</button>
           ))}
           {kids.length === 0 && <div style={{ padding: '10px 20px', borderRadius: '25px', backgroundColor: '#212529', color: '#adb5bd', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>Añade un niño para empezar</div>}
+        </div>
+
+        {/* CONTROLES DE ZOOM */}
+        <div style={zoomControlStyle}>
+          <button 
+            style={zoomButtonStyle} 
+            onClick={handleZoomIn}
+            onMouseEnter={e => e.target.style.backgroundColor = '#495057'} 
+            onMouseLeave={e => e.target.style.backgroundColor = '#343a40'}
+          >
+            +
+          </button>
+          <button 
+            style={zoomButtonStyle} 
+            onClick={handleZoomOut}
+            onMouseEnter={e => e.target.style.backgroundColor = '#495057'} 
+            onMouseLeave={e => e.target.style.backgroundColor = '#343a40'}
+          >
+            -
+          </button>
         </div>
 
         {mapReady && (
