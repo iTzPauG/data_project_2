@@ -76,7 +76,10 @@ resource "google_cloudbuildv2_connection" "github" {
     }
   }
 
-  depends_on = [google_project_service.cloudbuild]
+  depends_on = [
+    google_project_service.cloudbuild,
+    google_secret_manager_secret_iam_member.cloudbuild_github_token_access,
+  ]
 }
 
 # Link the specific repository to Cloud Build

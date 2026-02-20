@@ -86,3 +86,34 @@ resource "google_cloud_run_v2_service_iam_member" "public_access" {
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
+
+# Frontend Cloud Run service
+resource "google_cloud_run_v2_service" "frontend" {
+  name                = "frontend"
+  location            = var.gcp_region
+  deletion_protection = false
+
+  template {
+    containers {
+      image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/frontend:latest"
+
+      ports {
+        container_port = 8080
+      }
+    }
+  }
+
+  depends_on = [
+    google_project_service.cloudrun,
+    terraform_data.frontend_image_build,
+  ]
+}
+
+# Allow unauthenticated access to frontend
+resource "google_cloud_run_v2_service_iam_member" "frontend_public_access" {
+  project  = var.gcp_project_id
+  location = var.gcp_region
+  name     = google_cloud_run_v2_service.frontend.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
