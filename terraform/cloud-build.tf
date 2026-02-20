@@ -76,10 +76,7 @@ resource "google_cloudbuildv2_connection" "github" {
     }
   }
 
-  depends_on = [
-    google_project_service.cloudbuild,
-    google_secret_manager_secret_iam_member.cloudbuild_github_token_access,
-  ]
+  depends_on = [google_project_service.cloudbuild]
 }
 
 # Link the specific repository to Cloud Build
@@ -97,11 +94,10 @@ resource "google_cloudbuildv2_repository" "main" {
 
 # Cloud Build trigger for GitHub pushes to main branch
 resource "google_cloudbuild_trigger" "github_main" {
-  name            = "github-main-trigger"
-  description     = "Trigger on push to main branch - deploys API, Dataflow, and Cloud Functions"
-  location        = var.gcp_region
-  project         = var.gcp_project_id
-  service_account = "projects/${var.gcp_project_id}/serviceAccounts/${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  name        = "github-main-trigger"
+  description = "Trigger on push to main branch - deploys API, Dataflow, and Cloud Functions"
+  location    = var.gcp_region
+  project     = var.gcp_project_id
 
   repository_event_config {
     repository = google_cloudbuildv2_repository.main.id
@@ -212,6 +208,7 @@ resource "terraform_data" "api_image_build" {
   ]
 }
 
+<<<<<<< HEAD
 # =============================================================================
 # FRONTEND SOURCE CODE (for manual builds via Terraform)
 # =============================================================================
@@ -248,3 +245,26 @@ resource "terraform_data" "frontend_image_build" {
   ]
 }
 
+=======
+resource "google_secret_manager_secret" "github_oauth_token" {
+  secret_id = "github-oauth-token"
+  replication {
+    automatic = {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "github_oauth_token_version" {
+  secret      = google_secret_manager_secret.github_oauth_token.id
+  secret_data = var.github_oauth_token
+}
+
+resource "google_secret_manager_secret_iam_member" "cloudbuild_github_token_access" {
+  secret_id = "github-oauth-token"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:service-787549761080@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+  depends_on = [
+    google_cloudbuildv2_connection.github,
+    google_secret_manager_secret.github_oauth_token
+  ]
+}
+>>>>>>> parent of 231426a (Merge pull request #21 from iTzPauG/frontend-and-github)

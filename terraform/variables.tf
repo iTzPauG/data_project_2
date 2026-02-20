@@ -163,3 +163,11 @@ variable "github_app_installation_id" {
   type        = number
 }
 
+<<<<<<< HEAD
+=======
+variable "github_oauth_token" {
+  description = "GitHub OAuth token for Cloud Build v2 connection"
+  type        = string
+  sensitive   = true
+}
+>>>>>>> parent of 231426a (Merge pull request #21 from iTzPauG/frontend-and-github)
