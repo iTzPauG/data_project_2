@@ -11,6 +11,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 
 // --- 1. CONFIGURACIÓN ---
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+<<<<<<< Updated upstream
 
 // API de Cloud Run
 const API_URL = 'https://api-787549761080.europe-west6.run.app'; 
@@ -24,6 +25,17 @@ const INITIAL_VIEW_STATE = {
   latitude: 39.485569,
   zoom: 13,
   pitch: 0,
+=======
+const API_URL = import.meta.env.VITE_API_URL;
+const TARGET_USER_ID = "94"; // ID del padre
+const COLLECTION_NAME = "locations";
+
+const INITIAL_VIEW_STATE = {
+  longitude: -0.376288, 
+  latitude: 39.469907,
+  zoom: 14,
+  pitch: 45,
+>>>>>>> Stashed changes
   bearing: 0
 };
 
@@ -39,23 +51,26 @@ const ZONA_ESTATICA = [
 ];
 
 export default function App() {
-  // --- 2. ESTADO ---
+  // --- 2. ESTADO BASE ---
   const [ubicacionUsuario, setUbicacionUsuario] = useState(null);
-  const [statusConexion, setStatusConexion] = useState("🟡 Inicializando...");
-  const [debugData, setDebugData] = useState("Esperando datos...");
-  
-  // Estado para evitar el crasheo de WebGL al inicio
   const [mapReady, setMapReady] = useState(false);
-
-  // Estado de Zonas
   const [zonasSQL, setZonasSQL] = useState([]);
+  
+  // Estado Control de Cámara
+  const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
+  const [haCentradoInicial, setHaCentradoInicial] = useState(false);
+
+  // Estado Admin (Zonas)
   const [modoAdmin, setModoAdmin] = useState(false);
   const [nuevaZona, setNuevaZona] = useState(null);
   const [radioInput, setRadioInput] = useState(200);
 
-  // --- 3. EFECTOS ---
+  // NUEVO: Estado Pop-Up Añadir Niño
+  const [showKidModal, setShowKidModal] = useState(false);
+  const [kidName, setKidName] = useState("");
+  const [deviceTag, setDeviceTag] = useState(""); // <-- NUEVO CAMPO
 
-  // A) Retraso mínimo para que el DOM tenga tamaño antes de cargar WebGL
+  // --- 3. EFECTOS ---
   useEffect(() => {
     const timer = setTimeout(() => setMapReady(true), 150);
     return () => clearTimeout(timer);
@@ -64,66 +79,80 @@ export default function App() {
   useEffect(() => {
     axios.get(`${API_URL}/zones`)
       .then(res => {
-        // 🔥 AÑADE ESTO: Vamos a ver qué trae toda la base de datos
-        console.log("Datos crudos de la API:", res.data); 
-
         const zonasDelUsuario = res.data.filter(
           zona => String(zona.user_id) === String(TARGET_USER_ID)
         );
-        
         setZonasSQL(zonasDelUsuario);
-        console.log(`Zonas cargadas para el usuario ${TARGET_USER_ID}:`, zonasDelUsuario);
       })
       .catch(err => console.log("Info: API Zonas no disponible o fallo de CORS.", err));
   }, []);
 
-  // C) --- EL CHIVATO DE FIREBASE (Ubicación en tiempo real) ---
+  // Firebase Listener
   useEffect(() => {    
-    if (!db) {
-        console.error("❌ [FATAL] La base de datos 'db' es undefined. Revisa firebase.js");
-        setStatusConexion("🔴 Error Config DB");
-        return;
-    }
+    if (!db) return;
 
     const unsubscribe = onSnapshot(
       doc(db, COLLECTION_NAME, TARGET_USER_ID), 
       (docSnapshot) => {
         if (docSnapshot.exists()) {
           const data = docSnapshot.data();
-          setDebugData(JSON.stringify(data, null, 2));
-
           const lat = parseFloat(data.latitude);
           const lng = parseFloat(data.longitude);
 
-          if (isNaN(lat) || isNaN(lng)) {
-              setStatusConexion("🔴 Datos Inválidos");
-          } else {
+          if (!isNaN(lat) && !isNaN(lng)) {
               setUbicacionUsuario({
                 latitude: lat,
                 longitude: lng,
                 timestamp: data.timestamp,
                 userId: data.user_id
               });
-              setStatusConexion("🟢 En Vivo (Datos OK)");
+
+              if (!haCentradoInicial) {
+                setViewState({
+                  longitude: lng,
+                  latitude: lat,
+                  zoom: 16, 
+                  pitch: 45,
+                  bearing: 0,
+                  transitionDuration: 2000 
+                });
+                setHaCentradoInicial(true); 
+              }
           }
-        } else {
-          setDebugData(`Error: Documento ${TARGET_USER_ID} no encontrado.`);
-          setStatusConexion("⚪ ID No Encontrado");
         }
       },
-      (error) => {
-        console.error("💀 [ERROR CRÍTICO FIREBASE]:", error);
-        setStatusConexion("🔴 Error Conexión");
-      }
+      (error) => console.error("Error Firebase:", error)
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [haCentradoInicial]);
 
-  // --- 4. ADMIN ---
+  // --- 4. MANEJADORES (HANDLERS) ---
   const handleMapClick = (info) => {
     if (!modoAdmin || !info.coordinate) return;
     setNuevaZona({ latitude: info.coordinate[1], longitude: info.coordinate[0], radius: radioInput });
+  };
+
+  const handleSaveKid = () => {
+    if (!kidName.trim()) return;
+    
+    // Objeto listo con el nuevo campo Tag
+    console.log("🛠️ Preparado para enviar a la API:", {
+      nombre: kidName,
+      tag_dispositivo: deviceTag, // <-- SE ENVÍA EL TAG
+      user_id: TARGET_USER_ID 
+    });
+
+    // Limpiamos y cerramos
+    setKidName("");
+    setDeviceTag("");
+    setShowKidModal(false);
+  };
+
+  const handleCloseModal = () => {
+    setKidName("");
+    setDeviceTag("");
+    setShowKidModal(false);
   };
 
   // --- 5. CAPAS ---
@@ -165,12 +194,8 @@ export default function App() {
       getLineColor: [255, 255, 255, 255], 
       lineWidthUnits: 'pixels',
       getLineWidth: 3,
-      transitions: {
-        getPosition: 1000 
-      },
-      updateTriggers: {
-        getPosition: [ubicacionUsuario.latitude, ubicacionUsuario.longitude]
-      }
+      transitions: { getPosition: 1000 },
+      updateTriggers: { getPosition: [ubicacionUsuario.latitude, ubicacionUsuario.longitude] }
     }),
 
     nuevaZona && new ScatterplotLayer({
@@ -185,40 +210,151 @@ export default function App() {
     })
   ].filter(Boolean);
 
+  // --- 6. ESTILOS ---
+  const appContainerStyle = {
+    display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#212529', overflow: 'hidden'
+  };
+  const sidebarStyle = {
+    width: '320px', display: 'flex', flexDirection: 'column', padding: '30px 20px', boxSizing: 'border-box'
+  };
+  const mapWrapperStyle = {
+    flex: 1, position: 'relative', margin: '20px 20px 20px 0', borderRadius: '24px', 
+    overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', backgroundColor: '#343a40' 
+  };
+  const titleStyle = { margin: '0 0 30px 0', color: '#f8f9fa', fontSize: '24px', fontWeight: 'bold', fontFamily: 'sans-serif' };
+  const buttonStyle = {
+    padding: '15px 20px', margin: '0 0 15px 0', backgroundColor: '#343a40', border: '1px solid #495057',
+    borderRadius: '12px', color: '#f8f9fa', fontSize: '16px', fontWeight: '600', cursor: 'pointer',
+    textAlign: 'left', transition: 'all 0.2s ease', boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+  };
+
+  // Estilos del Modal (Pop-Up)
+  const modalOverlayStyle = {
+    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(5px)',
+    display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999
+  };
+  const modalContentStyle = {
+    backgroundColor: '#212529', padding: '30px', borderRadius: '16px',
+    width: '400px', boxShadow: '0 15px 40px rgba(0,0,0,0.5)', color: '#f8f9fa',
+    fontFamily: 'sans-serif', border: '1px solid #495057'
+  };
+  const inputStyle = {
+    width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '8px',
+    border: '1px solid #495057', backgroundColor: '#343a40', color: '#fff',
+    fontSize: '16px', boxSizing: 'border-box', outline: 'none'
+  };
+
   return (
-    // ESTE DIV ES VITAL PARA QUE NO FALLE WEBGL
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
+    <div style={appContainerStyle}>
       
-      {/* Solo renderiza si mapReady es true, dando tiempo al navegador a calcular el 100vw/100vh */}
-      {mapReady && (
-        <DeckGL
-          initialViewState={INITIAL_VIEW_STATE}
-          controller={true}
-          layers={layers}
-          onClick={handleMapClick}
-          getCursor={() => modoAdmin ? 'crosshair' : 'grab'}
-        >
-          <Map mapboxAccessToken={MAPBOX_TOKEN} mapStyle="mapbox://styles/mapbox/light-v11" />
-          
-          <div style={{
-            position: 'absolute', top: 20, left: 20, 
-            background: 'rgba(0,0,0,0.8)', color: '#0f0', 
-            padding: 15, borderRadius: 8, 
-            fontFamily: 'monospace', fontSize: 12, minWidth: 300,
-            border: '1px solid #0f0',
-            zIndex: 1000 
-          }}>
-            <h3 style={{margin: '0 0 10px 0', color: 'white'}}>🐞 PANEL DE DEBUG</h3>
-            <div style={{marginBottom: 5}}>Estado: <b>{statusConexion}</b></div>
-            <div style={{marginBottom: 5}}>BD Objetivo: <b>location-db</b></div>
-            <div style={{marginBottom: 5}}>ID Buscado: <b>{TARGET_USER_ID}</b></div>
-            <hr style={{borderColor: '#333'}}/>
-            <div style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>
-                {debugData}
+      {/* --- POP-UP AÑADIR NIÑO --- */}
+      {showKidModal && (
+        <div style={modalOverlayStyle}>
+          <div style={modalContentStyle}>
+            <h3 style={{ marginTop: 0 }}>Registrar Nuevo Niño</h3>
+            <p style={{ color: '#adb5bd', fontSize: '14px', lineHeight: '1.5', marginBottom: '20px' }}>
+              Introduce los datos del menor. Se vinculará a tu cuenta automáticamente para que puedas rastrear su ubicación.
+            </p>
+            
+            <input 
+              type="text" 
+              placeholder="Nombre (Ej: María)" 
+              value={kidName}
+              onChange={(e) => setKidName(e.target.value)}
+              style={inputStyle}
+              autoFocus
+            />
+
+            <input 
+              type="text" 
+              placeholder="Tag del dispositivo (Ej: Reloj-001)" 
+              value={deviceTag}
+              onChange={(e) => setDeviceTag(e.target.value)}
+              style={inputStyle}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+              <button 
+                onClick={handleCloseModal}
+                style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent', borderColor: 'transparent', boxShadow: 'none' }}
+                onMouseEnter={e => e.target.style.color = '#adb5bd'} 
+                onMouseLeave={e => e.target.style.color = '#f8f9fa'}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSaveKid}
+                style={{ ...buttonStyle, margin: 0, backgroundColor: '#3b82f6', borderColor: '#2563eb', textAlign: 'center' }}
+                onMouseEnter={e => e.target.style.backgroundColor = '#2563eb'} 
+                onMouseLeave={e => e.target.style.backgroundColor = '#3b82f6'}
+              >
+                Guardar Niño
+              </button>
             </div>
           </div>
-        </DeckGL>
+        </div>
       )}
+
+      {/* --- BARRA LATERAL (SIDEBAR) --- */}
+      <div style={sidebarStyle}>
+        <h2 style={titleStyle}>Panel de Control</h2>
+        
+        <button 
+          style={buttonStyle} 
+          onMouseEnter={e => e.target.style.backgroundColor = '#495057'} 
+          onMouseLeave={e => e.target.style.backgroundColor = '#343a40'} 
+        >
+          👤 Mi Perfil
+        </button>
+
+        <button 
+          style={buttonStyle}
+          onMouseEnter={e => e.target.style.backgroundColor = '#495057'} 
+          onMouseLeave={e => e.target.style.backgroundColor = '#343a40'}
+        >
+          🕒 Historial
+        </button>
+
+        <button 
+          style={buttonStyle}
+          onMouseEnter={e => e.target.style.backgroundColor = '#495057'} 
+          onMouseLeave={e => e.target.style.backgroundColor = '#343a40'}
+          onClick={() => setShowKidModal(true)} // ABRIR EL MODAL
+        >
+          👶 Añadir Niño
+        </button>
+
+        <button 
+          style={{
+            ...buttonStyle, 
+            backgroundColor: modoAdmin ? '#dc2626' : '#343a40', 
+            borderColor: modoAdmin ? '#b91c1c' : '#495057'
+          }}
+          onMouseEnter={e => {if(!modoAdmin) e.target.style.backgroundColor = '#495057'}} 
+          onMouseLeave={e => {if(!modoAdmin) e.target.style.backgroundColor = '#343a40'}}
+          onClick={() => setModoAdmin(!modoAdmin)}
+        >
+          🛑 {modoAdmin ? 'Cancelar Añadir Ubicación' : 'Añadir Ubicación Restringida'}
+        </button>
+      </div>
+
+      {/* --- CONTENEDOR DEL MAPA --- */}
+      <div style={mapWrapperStyle}>
+        {mapReady && (
+          <DeckGL
+            viewState={viewState} 
+            onViewStateChange={e => setViewState(e.viewState)} 
+            controller={true}
+            layers={layers}
+            onClick={handleMapClick}
+            getCursor={() => modoAdmin ? 'crosshair' : 'grab'}
+          >
+            <Map mapboxAccessToken={MAPBOX_TOKEN} mapStyle="mapbox://styles/mapbox/dark-v11" />
+          </DeckGL>
+        )}
+      </div>
+      
     </div>
   );
-}
+}   
