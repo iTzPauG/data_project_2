@@ -208,7 +208,6 @@ resource "terraform_data" "api_image_build" {
   ]
 }
 
-<<<<<<< HEAD
 # =============================================================================
 # FRONTEND SOURCE CODE (for manual builds via Terraform)
 # =============================================================================
@@ -245,26 +244,3 @@ resource "terraform_data" "frontend_image_build" {
   ]
 }
 
-=======
-resource "google_secret_manager_secret" "github_oauth_token" {
-  secret_id = "github-oauth-token"
-  replication {
-    automatic = {}
-  }
-}
-
-resource "google_secret_manager_secret_version" "github_oauth_token_version" {
-  secret      = google_secret_manager_secret.github_oauth_token.id
-  secret_data = var.github_oauth_token
-}
-
-resource "google_secret_manager_secret_iam_member" "cloudbuild_github_token_access" {
-  secret_id = "github-oauth-token"
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:service-787549761080@gcp-sa-cloudbuild.iam.gserviceaccount.com"
-  depends_on = [
-    google_cloudbuildv2_connection.github,
-    google_secret_manager_secret.github_oauth_token
-  ]
-}
->>>>>>> parent of 231426a (Merge pull request #21 from iTzPauG/frontend-and-github)

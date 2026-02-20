@@ -35,7 +35,3 @@ zones_sql_table        = "zones"
 github_owner               = "iTzPauG"
 github_repo_name           = "data_project_2"
 github_app_installation_id = 106823541
-<<<<<<< HEAD
-
-=======
->>>>>>> parent of 231426a (Merge pull request #21 from iTzPauG/frontend-and-github)
