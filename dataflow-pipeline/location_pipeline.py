@@ -26,9 +26,9 @@ logging.basicConfig(level=logging.INFO)
 class LocationData:
     """Represents a location data point."""
 
-    def __init__(self, user_id: str, latitude: float, longitude: float,
+    def __init__(self, tag_id: str, latitude: float, longitude: float,
                  timestamp: Optional[str] = None, **extra_fields):
-        self.user_id = str(user_id)
+        self.tag_id = str(tag_id)
         self.latitude = latitude
         self.longitude = longitude
         self.timestamp = timestamp or datetime.now().isoformat()
@@ -39,7 +39,7 @@ class LocationData:
         try:
             data = json.loads(json_str)
             return LocationData(
-                user_id=data['user_id'],
+                tag_id=data['tag_id'],
                 latitude=float(data['latitude']),
                 longitude=float(data['longitude']),
                 timestamp=data.get('timestamp')
@@ -50,7 +50,7 @@ class LocationData:
 
     def to_dict(self) -> Dict[str, Any]:
         result = {
-            'user_id': self.user_id,
+            'tag_id': self.tag_id,
             'latitude': self.latitude,
             'longitude': self.longitude,
             'timestamp': self.timestamp,
@@ -62,7 +62,7 @@ class LocationData:
         return json.dumps(self.to_dict())
 
     def __repr__(self) -> str:
-        return f"LocationData(user={self.user_id}, lat={self.latitude}, lon={self.longitude})"
+        return f"LocationData(tag={self.tag_id}, lat={self.latitude}, lon={self.longitude})"
 
 
 class ParseLocationDataFn(beam.DoFn):
@@ -154,7 +154,7 @@ class CheckZoneMatchFn(beam.DoFn):
                 )
                 notification = json.dumps({
                     'status': 'zone_violation',
-                    'user_id': location['user_id'],
+                    'tag_id': location['tag_id'],
                     'latitude': location['latitude'],
                     'longitude': location['longitude'],
                     'timestamp': location['timestamp'],
@@ -165,7 +165,7 @@ class CheckZoneMatchFn(beam.DoFn):
             else:
                 notification = json.dumps({
                     'status': 'no_match',
-                    'user_id': location['user_id'],
+                    'tag_id': location['tag_id'],
                     'latitude': location['latitude'],
                     'longitude': location['longitude'],
                     'timestamp': location['timestamp'],
@@ -181,7 +181,7 @@ class CheckZoneMatchFn(beam.DoFn):
 
 
 class SaveLastLocationToFirestoreFn(beam.DoFn):
-    """Save/overwrite the last location per user_id in Firestore."""
+    """Save/overwrite the last location per tag_id in Firestore."""
 
     def __init__(self, project: str, database: str, collection: str):
         self.project = project
@@ -198,12 +198,12 @@ class SaveLastLocationToFirestoreFn(beam.DoFn):
             doc_data = dict(location)
             doc_data['updated_at'] = datetime.now().isoformat()
 
-            # Use user_id as document ID so only last location is kept
-            doc_ref = self._db.collection(self.collection).document(location['user_id'])
+            # Use tag_id as document ID so only last location is kept
+            doc_ref = self._db.collection(self.collection).document(location['tag_id'])
             doc_ref.set(doc_data)
 
             logging.getLogger(__name__).info(
-                f"Saved last location for user {location['user_id']}"
+                f"Saved last location for tag {location['tag_id']}"
             )
             yield location
         except Exception as e:
@@ -262,7 +262,7 @@ def run(argv=None):
         | 'LocationData to Dict' >> beam.Map(lambda loc: loc)
         | 'Write to BigQuery' >> WriteToBigQuery(
             table=f"{known_args.project_id}:{known_args.bq_dataset}.{known_args.bq_table}",
-            schema='timestamp:TIMESTAMP,user_id:STRING,latitude:FLOAT,longitude:FLOAT',
+            schema='timestamp:TIMESTAMP,tag_id:STRING,latitude:FLOAT,longitude:FLOAT',
             write_disposition=BigQueryDisposition.WRITE_APPEND,
             create_disposition=BigQueryDisposition.CREATE_NEVER
         )
