@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
 import { Map } from 'react-map-gl';
 import { ScatterplotLayer, PolygonLayer } from '@deck.gl/layers'; 
@@ -19,20 +19,27 @@ const API_URL = 'https://api-787549761080.europe-west6.run.app';
 const TARGET_USER_ID = "94"; 
 const COLLECTION_NAME = "locations"; 
 
+// URL del WebSocket de tu API (FastAPI)
+// NOTA: Si estás en local usa 'ws://localhost:8000/ws/locations'
+// Si estás en Cloud Run usa 'wss://tu-url-de-cloud-run.app/ws/locations'
+const WS_URL = 'ws://localhost:8000/ws/locations';
+
 const INITIAL_VIEW_STATE = {
-  longitude: -0.365109, 
-  latitude: 39.485569,
-  zoom: 13,
-  pitch: 0,
+  longitude: -0.376288, // Valencia Centro
+  latitude: 39.469907,
+  zoom: 14,
+  pitch: 45,
   bearing: 0
 };
 
-// Zonas estáticas (opcional)
-const ZONA_ESTATICA = [
+// Datos Estáticos (Zonas Rojas)
+const ZONA_ROJA = [
   {
     polygon: [
-      [-0.3775, 39.4705], [-0.3765, 39.4705],
-      [-0.3765, 39.4695], [-0.3775, 39.4695],
+      [-0.3775, 39.4705],
+      [-0.3765, 39.4705],
+      [-0.3765, 39.4695],
+      [-0.3775, 39.4695],
       [-0.3775, 39.4705] 
     ]
   }
@@ -128,6 +135,7 @@ export default function App() {
 
   // --- 5. CAPAS ---
   const layers = [
+    // Capa 1: Zonas Prohibidas (Estática)
     new PolygonLayer({
       id: 'zonas-estaticas',
       data: ZONA_ESTATICA,

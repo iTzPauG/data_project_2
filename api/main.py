@@ -27,6 +27,8 @@ async def options_handler(path: str, response: Response):
     return {}
 
 # --- CORS (Permitir conexión desde React) ---
+# --- IMPORTANTE: CORS ---
+# Permite que tu Frontend (localhost:5173 o Cloud Run) se conecte
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -82,7 +84,7 @@ def get_publisher():
         _publisher = pubsub_v1.PublisherClient()
     return _publisher
 
-# --- WEBSOCKETS (Se mantienen por si acaso, aunque uses Firestore) ---
+# --- GESTOR DE WEBSOCKETS (NUEVO) ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -90,11 +92,13 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        print(f"🔌 Cliente conectado. Total: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
+        """Envía el mensaje a todos los Frontends conectados"""
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
@@ -159,9 +163,10 @@ class KidRequest(BaseModel):
 
 # --- Endpoints ---
 
-# 1. PUBLICAR UBICACIÓN (Sigue siendo vital para enviar datos a Dataflow)
+# 2. Endpoint que recibe los datos del script Python
 @app.post("/location")
 async def publish_location(data: LocationRequest):
+    # Preparamos el mensaje
     message_dict = {
         "user_id": str(data.user_id),
         "latitude": data.latitude,
@@ -290,3 +295,14 @@ def register_kid(data: KidRequest):
     message_id = future.result()
 
     return {"status": "ok", "message_id": message_id}
+
+# 1. Endpoint para que React se conecte (ws://...)
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Mantenemos la conexión abierta escuchando (aunque React no mande nada)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
