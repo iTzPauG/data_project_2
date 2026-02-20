@@ -79,15 +79,22 @@ resource "terraform_data" "dataflow_image_build" {
     data.archive_file.pipeline_source.output_md5
   ]
 
+  # Descomentar para Windows
   provisioner "local-exec" {
-    command = <<-EOT
-      gcloud builds submit \
-        "${path.module}/../dataflow-pipeline" \
-        --tag "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/location-pipeline:latest" \
-        --project "${var.gcp_project_id}" \
-        --quiet
-    EOT
+    # Igual aquí, quitamos las comillas escapadas
+    command = "gcloud builds submit ../dataflow-pipeline --tag europe-west6-docker.pkg.dev/data-project-2-kids/docker-repo/location-pipeline:latest --project data-project-2-kids --quiet"
   }
+
+  # Descomentar para Linux y Mac
+  # provisioner "local-exec" {
+  #   command = <<-EOT
+  #     gcloud builds submit \
+  #       "${path.module}/../dataflow-pipeline" \
+  #       --tag "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/location-pipeline:latest" \
+  #       --project "${var.gcp_project_id}" \
+  #       --quiet
+  #   EOT
+  # }
 
   depends_on = [
     google_storage_bucket_object.pipeline_source,

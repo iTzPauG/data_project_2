@@ -1,3 +1,5 @@
 fastapi
 uvicorn
 google-cloud-pubsub
+sqlalchemy
+psycopg2-binary

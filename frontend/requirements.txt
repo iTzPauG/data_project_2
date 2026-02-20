@@ -1,0 +1,23 @@
+# --- Framework Web y Servidor ---
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0   # Incluye soporte para WebSockets de alto rendimiento
+python-multipart            # Necesario para recibir datos de formularios a veces
+
+# --- Google Cloud Platform ---
+google-cloud-pubsub>=2.18.0 # Para enviar mensajes a Dataflow
+google-cloud-storage        # (Opcional) Por si guardas imágenes o logs luego
+
+# --- Base de Datos (Cloud SQL) ---
+sqlalchemy>=2.0.0           # El ORM para manejar la BBDD con clases Python
+# OJO: Descomenta SOLO UNO de los dos siguientes según tu BBDD en Cloud SQL:
+
+# OPCIÓN A: Si usas PostgreSQL (Recomendado para mapas/PostGIS)
+psycopg2-binary>=2.9.0      
+
+# OPCIÓN B: Si usas MySQL
+# mysql-connector-python>=8.0.0
+
+# --- Utilidades ---
+pydantic>=2.0.0             # Para validar que los JSON traen lat/long correctas
+python-dotenv>=1.0.0        # Para leer el archivo .env en local
+requests                    # Para que tu script 'random_movement.py' funcione

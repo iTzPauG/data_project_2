@@ -153,3 +153,13 @@ output "dataflow_service_account_id" {
   description = "Service account ID for Dataflow"
   value       = google_service_account.dataflow_runner.unique_id
 }
+# Otorgar permiso de Cliente de Cloud SQL a la cuenta de servicio de la API de Cloud Run
+resource "google_project_iam_member" "cloudrun_api_cloudsql_client" {
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  
+  # Usamos la cuenta exacta que hemos visto en tu IAM
+  member  = "serviceAccount:cloud-run-api@${var.gcp_project_id}.iam.gserviceaccount.com"
+
+  depends_on = [google_project_service.sqladmin]
+}
