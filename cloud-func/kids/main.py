@@ -22,7 +22,7 @@ def kids_data_to_sql(event, context):
         cursor = conn.cursor()
         print("conectado a la base de datos")
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS kids (
+            CREATE TABLE IF NOT EXISTS tags (
                 tag_id VARCHAR(255) PRIMARY KEY,
                 nombre VARCHAR(255),
                 user_id VARCHAR(255),
@@ -30,11 +30,11 @@ def kids_data_to_sql(event, context):
             );
         """)
         conn.commit()
-        print("tabla kids creada")
+        print("tabla tags creada")
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Error creating table kids: {e}")
+        print(f"Error creating table tags: {e}")
 
     # Decode Pub/Sub message (nativo)
     try:
@@ -66,7 +66,7 @@ def kids_data_to_sql(event, context):
         )
         cursor = conn.cursor()
         insert_query = """
-                INSERT INTO kids (tag_id, nombre, user_id, timestamp)
+                INSERT INTO tags (tag_id, nombre, user_id, timestamp)
                 VALUES (%s, %s, %s, %s)
                 ON CONFLICT (tag_id) DO UPDATE SET
                     nombre = EXCLUDED.nombre,
