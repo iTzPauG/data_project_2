@@ -23,7 +23,7 @@ def kids_data_to_sql(event, context):
         print("conectado a la base de datos")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS kids (
-                kid_id VARCHAR(255) PRIMARY KEY,
+                tag_id VARCHAR(255) PRIMARY KEY,
                 nombre VARCHAR(255),
                 user_id VARCHAR(255),
                 timestamp TIMESTAMP
@@ -42,7 +42,7 @@ def kids_data_to_sql(event, context):
             pubsub_message = base64.b64decode(event['data']).decode('utf-8')
             message_json = json.loads(pubsub_message)
             print(f"Mensaje decodificado: {message_json}")
-            kid_id = message_json.get('kid_id')
+            tag_id = message_json.get('tag_id')
             nombre = message_json.get('nombre')
             user_id = message_json.get('user_id')
             timestamp = message_json.get('timestamp')
@@ -66,17 +66,17 @@ def kids_data_to_sql(event, context):
         )
         cursor = conn.cursor()
         insert_query = """
-                INSERT INTO kids (kid_id, nombre, user_id, timestamp)
+                INSERT INTO kids (tag_id, nombre, user_id, timestamp)
                 VALUES (%s, %s, %s, %s)
-                ON CONFLICT (kid_id) DO UPDATE SET
+                ON CONFLICT (tag_id) DO UPDATE SET
                     nombre = EXCLUDED.nombre,
                     user_id = EXCLUDED.user_id,
                     timestamp = EXCLUDED.timestamp
             """
-        cursor.execute(insert_query, (kid_id, nombre, user_id, timestamp))
+        cursor.execute(insert_query, (tag_id, nombre, user_id, timestamp))
         conn.commit()
         cursor.close()
         conn.close()
-        print(f"Inserted kid: kid_id={kid_id}, nombre={nombre}, user_id={user_id}")
+        print(f"Inserted kid: tag_id={tag_id}, nombre={nombre}, user_id={user_id}")
     except Exception as e:
         print(f"Error inserting into Cloud SQL: {e}")

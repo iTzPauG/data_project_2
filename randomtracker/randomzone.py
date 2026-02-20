@@ -293,19 +293,19 @@ class PersonMovementGenerator:
         Write a single position to a file.
         
         Args:
-            position: Dictionary containing 'latitude', 'longitude', 'user_id', 'node_id', 'street_name', 'road_type', 'poi_name', 'poi_type', and optionally 'timestamp'
+            position: Dictionary containing 'latitude', 'longitude', 'tag_id', 'node_id', 'street_name', 'road_type', 'poi_name', 'poi_type', and optionally 'timestamp'
             filename: Path to the output file
             mode: File mode ('a' for append, 'w' for overwrite)
         """
         with open(filename, mode) as f:
             if 'timestamp' in position:
-                line = f"{position['user_id']},{position['timestamp']},{position['latitude']},{position['longitude']},{position.get('node_id', '')},{position.get('street_name', '')},{position.get('road_type', '')},{position.get('poi_name', '')},{position.get('poi_type', '')}\n"
+                line = f"{position['tag_id']},{position['timestamp']},{position['latitude']},{position['longitude']},{position.get('node_id', '')},{position.get('street_name', '')},{position.get('road_type', '')},{position.get('poi_name', '')},{position.get('poi_type', '')}\n"
             else:
-                line = f"{position['user_id']},{position['latitude']},{position['longitude']},{position.get('node_id', '')},{position.get('street_name', '')},{position.get('road_type', '')},{position.get('poi_name', '')},{position.get('poi_type', '')}\n"
+                line = f"{position['tag_id']},{position['latitude']},{position['longitude']},{position.get('node_id', '')},{position.get('street_name', '')},{position.get('road_type', '')},{position.get('poi_name', '')},{position.get('poi_type', '')}\n"
             f.write(line)
     
     def generate_continuous_movement(self, output_file='live_tracking.csv', 
-                                     interval_seconds=10, speed_mps=1.4, user_id=None):
+                                     interval_seconds=10, speed_mps=1.4, tag_id=None):
         """
         Continuously generate and write movement data to a file.
         Writes one position every interval_seconds until interrupted.
@@ -314,13 +314,13 @@ class PersonMovementGenerator:
             output_file: Path to the output CSV file
             interval_seconds: Time between writing positions (default: 10 seconds)
             speed_mps: Speed in meters per second (default: 1.4 m/s walking speed)
-            user_id: User ID hash (default: random number between 1-100)
+            tag_id: Tag ID hash (default: random number between 1-100)
         """
-        if user_id is None:
-            user_id = random.randint(1, 100)
+        if tag_id is None:
+            tag_id = random.randint(1, 100)
         
         print(f"Starting continuous tracking...")
-        print(f"User ID: {user_id}")
+        print(f"Tag ID: {tag_id}")
         print(f"Writing to: {output_file}")
         print(f"Interval: {interval_seconds} seconds")
         print(f"Speed: {speed_mps} m/s ({speed_mps * 3.6:.1f} km/h)")
@@ -328,7 +328,7 @@ class PersonMovementGenerator:
         
         # Initialize file with header
         with open(output_file, 'w') as f:
-            f.write("user_id,timestamp,latitude,longitude,node_id,street_name,road_type,poi_name,poi_type\n")
+            f.write("tag_id,timestamp,latitude,longitude,node_id,street_name,road_type,poi_name,poi_type\n")
         
         # Start at a random position
         current_node = self.get_random_node()
@@ -407,7 +407,7 @@ class PersonMovementGenerator:
                 
                 # Write current position
                 position = {
-                    'user_id': user_id,
+                    'tag_id': tag_id,
                     'timestamp': current_time.isoformat(),
                     'latitude': current_lat,
                     'longitude': current_lon,
@@ -467,12 +467,12 @@ class PersonMovementGenerator:
             print(f"Duration: {(datetime.now() - (current_time - timedelta(seconds=interval_seconds * points_written))).total_seconds():.1f} seconds")
             print(f"{'='*60}")
     
-    def generate_user_movement_thread(self, user_id, output_file, interval_seconds, speed_mps, lock):
+    def generate_user_movement_thread(self, tag_id, output_file, interval_seconds, speed_mps, lock):
         """
         Generate movement for a single user (to be run in a thread).
         
         Args:
-            user_id: User ID for this thread
+            tag_id: Tag ID for this thread
             output_file: Path to the shared CSV file
             interval_seconds: Time between writing positions
             speed_mps: Speed in meters per second
@@ -548,7 +548,7 @@ class PersonMovementGenerator:
                 
                 # Write current position (thread-safe)
                 position = {
-                    'user_id': user_id,
+                    'tag_id': tag_id,
                     'timestamp': current_time.isoformat(),
                     'latitude': current_lat,
                     'longitude': current_lon,
@@ -691,7 +691,7 @@ def main():
         radius = random.randint(20, 50)
         timestamp = datetime.utcnow().isoformat() + 'Z'
         result = {
-            "user_id": random.randint(1, 5),
+            "tag_id": random.randint(1, 5),
             "latitude": lat,
             "longitude": lon,
             "timestamp": timestamp,

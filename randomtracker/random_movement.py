@@ -288,51 +288,26 @@ class PersonMovementGenerator:
             'total_duration_seconds': (current_time - start_time).total_seconds(),
             'average_speed_mps': speed_mps
         }
-    
-    def write_element(self, position, filename, mode='a'):
+
+    def generate_continuous_movement(self, interval_seconds=10, speed_mps=1.4, tag_id=None):
         """
-        Write a single position to a file.
+        Continuously generate and send movement data to API.
+        Sends one position every interval_seconds until interrupted.
         
         Args:
-            position: Dictionary containing 'latitude', 'longitude', 'user_id', 'node_id', 'street_name', 'road_type', 'poi_name', 'poi_type', and optionally 'timestamp'
-            filename: Path to the output file
-            mode: File mode ('a' for append, 'w' for overwrite)
-        """
-        with open(filename, mode) as f:
-            if 'timestamp' in position:
-                line = f"{position['user_id']},{position['timestamp']},{position['latitude']},{position['longitude']},{position.get('node_id', '')},{position.get('street_name', '')},{position.get('road_type', '')},{position.get('poi_name', '')},{position.get('poi_type', '')}\n"
-            else:
-                line = f"{position['user_id']},{position['latitude']},{position['longitude']},{position.get('node_id', '')},{position.get('street_name', '')},{position.get('road_type', '')},{position.get('poi_name', '')},{position.get('poi_type', '')}\n"
-            f.write(line)
-
-
-
-    def generate_continuous_movement(self, output_file='live_tracking.csv', 
-                                     interval_seconds=10, speed_mps=1.4, user_id=None):
-        """
-        Continuously generate and write movement data to a file.
-        Writes one position every interval_seconds until interrupted.
-        
-        Args:
-            output_file: Path to the output CSV file
-            interval_seconds: Time between writing positions (default: 10 seconds)
+            interval_seconds: Time between sending positions (default: 10 seconds)
             speed_mps: Speed in meters per second (default: 1.4 m/s walking speed)
-            user_id: User ID hash (default: random number between 1-100)
+            tag_id: Tag ID hash (default: random number between 1-100)
         """
-        if user_id is None:
-            user_id = random.randint(1, 100)
-            user_id = str(user_id)
+        if tag_id is None:
+            tag_id = random.randint(1, 100)
+            tag_id = str(tag_id)
         
         print(f"Starting continuous tracking...")
-        print(f"User ID: {user_id}")
-        print(f"Writing to: {output_file}")
+        print(f"Tag ID: {tag_id}")
         print(f"Interval: {interval_seconds} seconds")
         print(f"Speed: {speed_mps} m/s ({speed_mps * 3.6:.1f} km/h)")
         print("Press Ctrl+C to stop\n")
-        
-        # Initialize file with header
-        with open(output_file, 'w') as f:
-            f.write("user_id,timestamp,latitude,longitude,node_id,street_name,road_type,poi_name,poi_type\n")
         
         # Start at a random position
         current_node = self.get_random_node()
@@ -411,16 +386,13 @@ class PersonMovementGenerator:
                 
                 # Write current position
                 position = {
-                    'user_id': user_id,
+                    'tag_id': tag_id,
                     'timestamp': current_time.isoformat(),
                     'latitude': current_lat,
                     'longitude': current_lon
                 }
 
-                # 1. Escribir en CSV (Local)
-                self.write_element(position, output_file)
-
-                # 2. Escribir en Pub/Sub (Nube)
+                # Enviar a API
                 self.publish_position(position) 
 
                 points_written += 1
@@ -467,21 +439,18 @@ class PersonMovementGenerator:
         except KeyboardInterrupt:
             print(f"\n\n{'='*60}")
             print(f"Tracking stopped by user")
-            print(f"Total points written: {points_written}")
-            print(f"Output file: {output_file}")
+            print(f"Total points sent: {points_written}")
             print(f"Duration: {(datetime.now() - (current_time - timedelta(seconds=interval_seconds * points_written))).total_seconds():.1f} seconds")
             print(f"{'='*60}")
     
-    def generate_user_movement_thread(self, user_id, output_file, interval_seconds, speed_mps, lock):
+    def generate_user_movement_thread(self, tag_id, interval_seconds, speed_mps):
         """
         Generate movement for a single user (to be run in a thread).
         
         Args:
-            user_id: User ID for this thread
-            output_file: Path to the shared CSV file
-            interval_seconds: Time between writing positions
+            tag_id: Tag ID for this thread
+            interval_seconds: Time between sending positions
             speed_mps: Speed in meters per second
-            lock: Threading lock for file writing
         """
         # Each user starts at a random position
         current_node = self.get_random_node()
@@ -553,16 +522,13 @@ class PersonMovementGenerator:
                 
                 # Write current position (thread-safe)
                 position = {
-                    'user_id': user_id,
+                    'tag_id': tag_id,
                     'timestamp': current_time.isoformat(),
                     'latitude': current_lat,
                     'longitude': current_lon
                 }
-                
-                with lock:
-                    self.write_element(position, output_file)
 
-                # Publish to Pub/Sub (THREAD SAFE, no necesita lock)
+                # Publish to API
                 self.publish_position(position)
                 
                 points_written += 1
@@ -646,40 +612,31 @@ def main():
     print("Starting continuous movement tracking")
     print("=" * 60)
     
-    output_file = 'live_tracking.csv'
-    
     if args.users == 1:
         # Single user mode
         generator.generate_continuous_movement(
-            output_file=output_file,
             interval_seconds=args.time,
             speed_mps=args.speed
         )
     else:
         # Multi-user mode
-        print(f"\nGenerating {args.users} users...")
-        print(f"Writing to: {output_file}")
+        print(f"\nGenerating {args.users} tags...")
         print("Press Ctrl+C to stop\n")
         
-        # Initialize file with header
-        with open(output_file, 'w') as f:
-            f.write("user_id,timestamp,latitude,longitude,node_id,street_name,road_type,poi_name,poi_type\n")
-        
-        # Create threads for each user
+        # Create threads for each tag
         threads = []
-        lock = threading.Lock()
         
-        for user_id in range(1, args.users + 1):
+        for tag_id in range(1, args.users + 1):
             thread = threading.Thread(
                 target=generator.generate_user_movement_thread,
-                args=(user_id, output_file, args.time, args.speed, lock),
+                args=(tag_id, args.time, args.speed),
                 daemon=True
             )
             thread.start()
             threads.append(thread)
-            print(f"Started tracking for User {user_id}")
+            print(f"Started tracking for Tag {tag_id}")
         
-        print(f"\nAll {args.users} users are now being tracked!\n")
+        print(f"\nAll {args.users} tags are now being tracked!\n")
         
         try:
             # Keep main thread alive
@@ -688,7 +645,6 @@ def main():
         except KeyboardInterrupt:
             print(f"\n\n{'='*60}")
             print(f"Tracking stopped by user")
-            print(f"Output file: {output_file}")
             print(f"{'='*60}")
 
 
