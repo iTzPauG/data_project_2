@@ -1,3 +1,7 @@
+locals {
+  vite_ws_url = "${replace(google_cloud_run_v2_service.api.uri, "https://", "wss://")}/ws"
+}
+
 # Enable Cloud Build API
 resource "google_project_service" "cloudbuild" {
   service            = "cloudbuild.googleapis.com"
@@ -233,7 +237,7 @@ resource "terraform_data" "frontend_image_build" {
   ]
 
   provisioner "local-exec" {
-    command = "gcloud builds submit gs://${google_storage_bucket.api_source.name}/${google_storage_bucket_object.frontend_source.name} --config=${path.module}/../frontend/cloudbuild.yaml --substitutions=_VITE_API_URL=${google_cloud_run_v2_service.api.uri},_VITE_MAPBOX_TOKEN=${var.mapbox_token},_VITE_WS_URL=${var.vite_ws_url},_IMAGE_TAG=${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/frontend:latest --project ${var.gcp_project_id} --quiet"
+    command = "gcloud builds submit gs://${google_storage_bucket.api_source.name}/${google_storage_bucket_object.frontend_source.name} --config=${path.module}/../frontend/cloudbuild.yaml --substitutions=_VITE_API_URL=${google_cloud_run_v2_service.api.uri},_VITE_MAPBOX_TOKEN=${data.google_secret_manager_secret_version.mapbox_token.secret_data},_VITE_WS_URL=${local.vite_ws_url},_IMAGE_TAG=${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/frontend:latest --project ${var.gcp_project_id} --quiet"
   }
 
   depends_on = [
@@ -244,32 +248,3 @@ resource "terraform_data" "frontend_image_build" {
   ]
 }
 
-resource "google_secret_manager_secret" "github_oauth_token" {
-  secret_id = "github-oauth-token"
-  replication {
-    auto {}
-  }
-}
-
-data "google_secret_manager_secret_version" "github_oauth_token" {
-  secret  = google_secret_manager_secret.github_oauth_token.id
-  version = "latest"
-}
-
-resource "google_secret_manager_secret_version" "github_oauth_token_version" {
-  secret      = google_secret_manager_secret.github_oauth_token.id
-  secret_data = data.google_secret_manager_secret_version.github_oauth_token.secret_data
-
-  lifecycle {
-    ignore_changes = [secret_data]
-  }
-}
-
-resource "google_secret_manager_secret_iam_member" "cloudbuild_github_token_access" {
-  secret_id = "github-oauth-token"
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:service-787549761080@gcp-sa-cloudbuild.iam.gserviceaccount.com"
-  depends_on = [
-    google_secret_manager_secret.github_oauth_token
-  ]
-}

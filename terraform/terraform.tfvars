@@ -36,6 +36,3 @@ github_owner               = "iTzPauG"
 github_repo_name           = "data_project_2"
 github_app_installation_id = 106823541
 
-# Frontend Configuration
-mapbox_token = "pk.eyJ1IjoiamVqZWp1YXNqdWFzIiwiYSI6ImNtbHV6amVjZTAyeG8zY3NiZDB4dTZ0NnUifQ.YIpJ6IsPVl90xHI8PShF7A"
-vite_ws_url  = "wss://api-uuusvlh2sa-oa.a.run.app/ws"
