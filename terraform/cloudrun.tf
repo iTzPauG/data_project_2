@@ -25,15 +25,29 @@ resource "google_cloud_run_v2_service" "api" {
   deletion_protection = false
 
   template {
-    # Inyectamos el hash del ZIP como anotación; si el código cambia, el hash cambia y fuerza una nueva revisión.
     annotations = {
       "force-update" = data.archive_file.api_source.output_md5
     }
 
     service_account = google_service_account.cloud_run_sa.email
 
+    # 1. CONEXIÓN A CLOUD SQL (Vital para Cloud Run v2)
+    volumes {
+      name = "cloudsql"
+      cloud_sql_instance {
+        # Formato: PROYECTO:REGION:NOMBRE_INSTANCIA
+        instances = ["${var.gcp_project_id}:${var.gcp_region}:${var.cloudsql_instance_name}"]
+      }
+    }
+
     containers {
       image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/api:latest"
+
+      # 2. MONTAMOS EL VOLUMEN PARA EL SOCKET DE POSTGRES
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
+      }
 
       env {
         name  = "GCP_PROJECT_ID"
@@ -46,6 +60,13 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "PUBSUB_ZONE_TOPIC"
         value = google_pubsub_topic.incoming_zone_data.name
+      }
+      
+      # 3. LA VARIABLE MÁGICA QUE NOS FALTABA
+      env {
+        name  = "DATABASE_URL"
+        # Usamos el socket de Unix (/cloudsql/...) para conectar de forma segura
+        value = "postgresql://${var.cloudsql_user}:${var.cloudsql_password}@/appdb?host=/cloudsql/${var.gcp_project_id}:${var.gcp_region}:${var.cloudsql_instance_name}"
       }
     }
   }

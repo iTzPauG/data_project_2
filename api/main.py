@@ -15,7 +15,16 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
+from fastapi import Response
+
 app = FastAPI(title="Location & Zone Ingestion API")
+
+@app.options("/{path:path}")
+async def options_handler(path: str, response: Response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return {}
 
 # --- CORS (Permitir conexión desde React) ---
 app.add_middleware(
@@ -46,13 +55,11 @@ Base = declarative_base()
 # --- MODELO DB (La tabla que guardará las zonas) ---
 class ZoneDB(Base):
     __tablename__ = "zones"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String)
+    user_id = Column(String, primary_key=True)
     latitude = Column(Float)
     longitude = Column(Float)
     radius = Column(Float)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    node_id = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
 
 # Crea la tabla automáticamente si no existe
 Base.metadata.create_all(bind=engine)
