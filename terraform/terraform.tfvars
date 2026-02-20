@@ -30,3 +30,8 @@ cloudsql_db_name       = "appdb"
 cloudsql_user          = "appuser"
 cloudsql_password      = "your-secure-password"  # Set via TF_VAR_cloudsql_password env variable
 zones_sql_table        = "zones"
+
+# GitHub CI/CD Configuration
+github_owner               = "iTzPauG"
+github_repo_name           = "data_project_2"
+github_app_installation_id = 106823541

@@ -1,0 +1,137 @@
+steps:
+  # Step 1: Build API Docker image and push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build API Image'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/api:$COMMIT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/api:latest'
+      - './api'
+    waitFor: ['-']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push API Image'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/api:$COMMIT_SHA'
+    waitFor: ['Build API Image']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push API Image Latest'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/api:latest'
+    waitFor: ['Build API Image']
+
+  # Step 2: Build Dataflow pipeline Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build Dataflow Image'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/location-pipeline:$COMMIT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/location-pipeline:latest'
+      - './dataflow-pipeline'
+    waitFor: ['-']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Dataflow Image'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/location-pipeline:$COMMIT_SHA'
+    waitFor: ['Build Dataflow Image']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Dataflow Image Latest'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/location-pipeline:latest'
+    waitFor: ['Build Dataflow Image']
+
+  # Step 3: Build Dataflow Flex Template
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Build Dataflow Flex Template'
+    entrypoint: gcloud
+    args:
+      - 'dataflow'
+      - 'flex-template'
+      - 'build'
+      - 'gs://${_DATAFLOW_BUCKET}/templates/location-pipeline.json'
+      - '--image-gcr-path=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/location-pipeline:$COMMIT_SHA'
+      - '--flex-template-base-image=PYTHON3'
+      - '--sdk-language=PYTHON'
+      - '--py-path=./dataflow-pipeline'
+      - '--metadata-file=./dataflow-pipeline/metadata.json'
+      - '--env=FLEX_TEMPLATE_PYTHON_PY_FILE=location_pipeline.py'
+      - '--env=FLEX_TEMPLATE_PYTHON_REQUIREMENTS_FILE=requirements.txt'
+    waitFor: ['Push Dataflow Image']
+
+  # Step 4: Run Dataflow Flex Template job
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Run Dataflow Job'
+    entrypoint: gcloud
+    args:
+      - 'dataflow'
+      - 'flex-template'
+      - 'run'
+      - '${_DATAFLOW_JOB_NAME}-$SHORT_SHA'
+      - '--template-file-gcs-location=gs://${_DATAFLOW_BUCKET}/templates/location-pipeline.json'
+      - '--region=${_REGION}'
+      - '--max-workers=${_MAX_WORKERS}'
+      - '--service-account-email=${_DATAFLOW_SERVICE_ACCOUNT}'
+      - '--parameters=input_subscription=projects/$PROJECT_ID/subscriptions/${_INPUT_SUBSCRIPTION}'
+      - '--parameters=output_notifications_topic=projects/$PROJECT_ID/topics/${_NOTIFICATIONS_TOPIC}'
+      - '--parameters=project_id=$PROJECT_ID'
+      - '--parameters=firestore_database=${_FIRESTORE_DATABASE}'
+      - '--parameters=firestore_collection=${_FIRESTORE_COLLECTION}'
+      - '--parameters=db_host=${_DB_HOST}'
+      - '--parameters=db_name=${_DB_NAME}'
+      - '--parameters=db_user=${_DB_USER}'
+      - '--parameters=db_pass=${_DB_PASS}'
+      - '--parameters=bq_dataset=${_BQ_DATASET}'
+      - '--parameters=bq_table=${_BQ_TABLE}'
+    waitFor: ['Build Dataflow Flex Template']
+
+  # Step 5: Deploy API to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy API to Cloud Run'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_CLOUDRUN_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REGISTRY_REPO}/api:$COMMIT_SHA'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,PUBSUB_LOCATION_TOPIC=${_LOCATION_TOPIC},PUBSUB_ZONE_TOPIC=${_ZONE_TOPIC},PUBSUB_USER_TOPIC=${_USER_TOPIC},PUBSUB_KIDS_TOPIC=${_KIDS_TOPIC}'
+    waitFor: ['Push API Image']
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _REGION: 'europe-west6'
+  _ARTIFACT_REGISTRY_REPO: 'docker-repo'
+  _DATAFLOW_BUCKET: 'data-project-2-kids-dataflow-staging'
+  _DATAFLOW_JOB_NAME: 'location-streaming-pipeline'
+  _MAX_WORKERS: '1'
+  _DATAFLOW_SERVICE_ACCOUNT: 'dataflow-runner@data-project-2-kids.iam.gserviceaccount.com'
+  _INPUT_SUBSCRIPTION: 'incoming-location-data-subscription'
+  _NOTIFICATIONS_TOPIC: 'notifications'
+  _FIRESTORE_DATABASE: 'location-db'
+  _FIRESTORE_COLLECTION: 'locations'
+  _DB_HOST: '34.65.160.231'
+  _DB_NAME: 'appdb'
+  _DB_USER: 'appuser'
+  _DB_PASS: 'your-secure-password'
+  _BQ_DATASET: 'prod_dataset'
+  _BQ_TABLE: 'location_events'
+  _CLOUDRUN_SERVICE_NAME: 'location-api'
+  _LOCATION_TOPIC: 'incoming-location-data'
+  _ZONE_TOPIC: 'zone-data'
+  _USER_TOPIC: 'user-data'
+  _KIDS_TOPIC: 'kids-data'

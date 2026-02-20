@@ -1,64 +1,96 @@
-# Cuenta de servicio dedicada para la Cloud Function
+# =============================================================================
+# SERVICE ACCOUNTS FOR CLOUD FUNCTIONS
+# =============================================================================
+
+# Cuenta de servicio dedicada para la Cloud Function de zones
 resource "google_service_account" "zone_data_function" {
   account_id   = "zone-data-function-sa"
   display_name = "Service Account for zone-data-to-sql Cloud Function"
 }
 
-# Asigna el rol Cloud SQL Client a la cuenta de servicio
 resource "google_project_iam_member" "zone_data_function_sql_client" {
   project = var.gcp_project_id
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.zone_data_function.email}"
 }
-# Create forbidden_locations table in Cloud SQL
-# requirements.txt para la Cloud Function Gen 2
-resource "local_file" "zone_data_function_requirements" {
-  filename = "../dataflow-pipeline/requirements.txt"
+
+# Cuenta de servicio dedicada para la Cloud Function de users
+resource "google_service_account" "user_data_function" {
+  account_id   = "user-data-function-sa"
+  display_name = "Service Account for user-data-to-sql Cloud Function"
+}
+
+resource "google_project_iam_member" "user_data_function_sql_client" {
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.user_data_function.email}"
+}
+
+# Cuenta de servicio dedicada para la Cloud Function de kids
+resource "google_service_account" "kids_data_function" {
+  account_id   = "kids-data-function-sa"
+  display_name = "Service Account for kids-data-to-sql Cloud Function"
+}
+
+resource "google_project_iam_member" "kids_data_function_sql_client" {
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.kids_data_function.email}"
+}
+
+# =============================================================================
+# REQUIREMENTS FILE (shared by all cloud functions)
+# =============================================================================
+
+resource "local_file" "cloud_function_requirements" {
+  filename = "../cloud-func/requirements.txt"
   content  = <<-EOT
 psycopg2-binary
 google-cloud-secret-manager
-google-cloud-firestore==2.14.0
 EOT
 }
 
-# Archivo ZIP para la Cloud Function Gen 2
+# =============================================================================
+# ZONE DATA CLOUD FUNCTION
+# =============================================================================
+
 resource "archive_file" "zone_data_function_zip" {
   type        = "zip"
-  output_path = "../dataflow-pipeline/cloud_function_zone_data_to_sql.zip"
+  output_path = "../cloud-func/zone/cloud_function_zone_data_to_sql.zip"
   source {
-    content  = file("../dataflow-pipeline/main.py")
+    content  = file("../cloud-func/zone/main.py")
     filename = "main.py"
   }
   source {
-    content  = local_file.zone_data_function_requirements.content
+    content  = local_file.cloud_function_requirements.content
     filename = "requirements.txt"
   }
   excludes   = ["*.zip"]
-  depends_on = [local_file.zone_data_function_requirements]
+  depends_on = [local_file.cloud_function_requirements]
 }
-# Cloud Function Gen 2 para procesar zone data
-resource "google_storage_bucket" "zone_data_function_code" {
-  name          = "${var.cloudsql_instance_name}-zone-data-function-code"
+
+resource "google_storage_bucket" "cloud_functions_code" {
+  name          = "${var.cloudsql_instance_name}-cloud-functions-code"
   location      = var.gcp_region
   force_destroy = true
 }
 
 resource "google_storage_bucket_object" "zone_data_function_zip" {
   name   = "cloud_function_zone_data_to_sql.zip"
-  bucket = google_storage_bucket.zone_data_function_code.name
+  bucket = google_storage_bucket.cloud_functions_code.name
   source = archive_file.zone_data_function_zip.output_path
 }
 
 resource "google_cloudfunctions2_function" "zone_data_to_sql" {
   name        = "zone-data-to-sql"
   location    = var.gcp_region
-  description = "Procesa mensajes Pub/Sub y los inserta en Cloud SQL (Gen 2)"
+  description = "Procesa mensajes Pub/Sub de zones y los inserta en Cloud SQL"
   build_config {
     runtime     = "python310"
     entry_point = "zone_data_to_sql"
     source {
       storage_source {
-        bucket = google_storage_bucket.zone_data_function_code.name
+        bucket = google_storage_bucket.cloud_functions_code.name
         object = google_storage_bucket_object.zone_data_function_zip.name
       }
     }
@@ -80,11 +112,129 @@ resource "google_cloudfunctions2_function" "zone_data_to_sql" {
   event_trigger {
     event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
     trigger_region = var.gcp_region
-    pubsub_topic   = "projects/${var.gcp_project_id}/topics/zone-data"
+    pubsub_topic   = "projects/${var.gcp_project_id}/topics/${var.zone_data_topic_name}"
   }
 }
 
-# Eventarc trigger para Pub/Sub topic
+# =============================================================================
+# USER DATA CLOUD FUNCTION
+# =============================================================================
+
+resource "archive_file" "user_data_function_zip" {
+  type        = "zip"
+  output_path = "../cloud-func/users/cloud_function_user_data_to_sql.zip"
+  source {
+    content  = file("../cloud-func/users/main.py")
+    filename = "main.py"
+  }
+  source {
+    content  = local_file.cloud_function_requirements.content
+    filename = "requirements.txt"
+  }
+  excludes   = ["*.zip"]
+  depends_on = [local_file.cloud_function_requirements]
+}
+
+resource "google_storage_bucket_object" "user_data_function_zip" {
+  name   = "cloud_function_user_data_to_sql.zip"
+  bucket = google_storage_bucket.cloud_functions_code.name
+  source = archive_file.user_data_function_zip.output_path
+}
+
+resource "google_cloudfunctions2_function" "user_data_to_sql" {
+  name        = "user-data-to-sql"
+  location    = var.gcp_region
+  description = "Procesa mensajes Pub/Sub de users y los inserta en Cloud SQL"
+  build_config {
+    runtime     = "python310"
+    entry_point = "user_data_to_sql"
+    source {
+      storage_source {
+        bucket = google_storage_bucket.cloud_functions_code.name
+        object = google_storage_bucket_object.user_data_function_zip.name
+      }
+    }
+  }
+  service_config {
+    min_instance_count = 1
+    max_instance_count = 1
+    available_memory   = "256M"
+    timeout_seconds    = 180
+    environment_variables = {
+      DB_USER     = var.cloudsql_user
+      DB_PASS     = var.cloudsql_password
+      DB_NAME     = var.cloudsql_db_name
+      DB_HOST     = google_sql_database_instance.main.public_ip_address
+      GCP_PROJECT = var.gcp_project_id
+    }
+    service_account_email = google_service_account.user_data_function.email
+  }
+  event_trigger {
+    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
+    trigger_region = var.gcp_region
+    pubsub_topic   = "projects/${var.gcp_project_id}/topics/${var.user_data_topic_name}"
+  }
+}
+
+# =============================================================================
+# KIDS DATA CLOUD FUNCTION
+# =============================================================================
+
+resource "archive_file" "kids_data_function_zip" {
+  type        = "zip"
+  output_path = "../cloud-func/kids/cloud_function_kids_data_to_sql.zip"
+  source {
+    content  = file("../cloud-func/kids/main.py")
+    filename = "main.py"
+  }
+  source {
+    content  = local_file.cloud_function_requirements.content
+    filename = "requirements.txt"
+  }
+  excludes   = ["*.zip"]
+  depends_on = [local_file.cloud_function_requirements]
+}
+
+resource "google_storage_bucket_object" "kids_data_function_zip" {
+  name   = "cloud_function_kids_data_to_sql.zip"
+  bucket = google_storage_bucket.cloud_functions_code.name
+  source = archive_file.kids_data_function_zip.output_path
+}
+
+resource "google_cloudfunctions2_function" "kids_data_to_sql" {
+  name        = "kids-data-to-sql"
+  location    = var.gcp_region
+  description = "Procesa mensajes Pub/Sub de kids y los inserta en Cloud SQL"
+  build_config {
+    runtime     = "python310"
+    entry_point = "kids_data_to_sql"
+    source {
+      storage_source {
+        bucket = google_storage_bucket.cloud_functions_code.name
+        object = google_storage_bucket_object.kids_data_function_zip.name
+      }
+    }
+  }
+  service_config {
+    min_instance_count = 1
+    max_instance_count = 1
+    available_memory   = "256M"
+    timeout_seconds    = 180
+    environment_variables = {
+      DB_USER     = var.cloudsql_user
+      DB_PASS     = var.cloudsql_password
+      DB_NAME     = var.cloudsql_db_name
+      DB_HOST     = google_sql_database_instance.main.public_ip_address
+      GCP_PROJECT = var.gcp_project_id
+    }
+    service_account_email = google_service_account.kids_data_function.email
+  }
+  event_trigger {
+    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
+    trigger_region = var.gcp_region
+    pubsub_topic   = "projects/${var.gcp_project_id}/topics/${var.kids_data_topic_name}"
+  }
+}
 # Cloud SQL instance for frequent queries (basic setup)
 resource "google_sql_database_instance" "main" {
   name             = var.cloudsql_instance_name
@@ -127,4 +277,13 @@ resource "google_sql_user" "default" {
 output "cloudsql_instance_connection_name" {
   description = "Cloud SQL instance connection name"
   value       = google_sql_database_instance.main.connection_name
+}
+
+output "cloud_functions" {
+  description = "Cloud Functions URLs"
+  value = {
+    zone_data_to_sql = google_cloudfunctions2_function.zone_data_to_sql.service_config[0].uri
+    user_data_to_sql = google_cloudfunctions2_function.user_data_to_sql.service_config[0].uri
+    kids_data_to_sql = google_cloudfunctions2_function.kids_data_to_sql.service_config[0].uri
+  }
 }
