@@ -30,3 +30,6 @@ cloudsql_db_name       = "appdb"
 cloudsql_user          = "appuser"
 cloudsql_password      = "your-secure-password"  # Set via TF_VAR_cloudsql_password env variable
 zones_sql_table        = "zones"
+
+# Admin Panel
+admin_secret_key = "ADMIN_SECRET_KEY"  # Set via TF_VAR_admin_secret_key env variable

@@ -69,5 +69,9 @@ output "summary" {
       temp_bucket     = google_storage_bucket.dataflow_temp.name
       region          = var.gcp_region
     }
+    urls = {
+      api         = google_cloud_run_v2_service.api.uri
+      admin_panel = google_cloud_run_v2_service.admin.uri
+    }
   }
 }

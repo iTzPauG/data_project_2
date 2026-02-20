@@ -134,3 +134,16 @@ variable "cloud_run_allow_unauthenticated" {
   type        = bool
   default     = true
 }
+
+# Admin Panel Variables
+variable "admin_cloud_run_service_name" {
+  description = "Name of the Admin Panel Cloud Run service"
+  type        = string
+  default     = "admin-panel"
+}
+
+variable "admin_secret_key" {
+  description = "Secret key used to sign admin JWT tokens (keep this secret)"
+  type        = string
+  sensitive   = true
+}

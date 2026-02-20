@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrackAdmin · Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #07091a;
+      --surface:    #0c1124;
+      --surface-2:  #111827;
+      --surface-3:  #161f35;
+      --border:     rgba(100, 130, 200, 0.1);
+      --border-2:   rgba(100, 130, 200, 0.18);
+      --cyan:       #22d3ee;
+      --cyan-dim:   rgba(34, 211, 238, 0.08);
+      --indigo:     #818cf8;
+      --indigo-dim: rgba(129, 140, 248, 0.08);
+      --green:      #34d399;
+      --green-dim:  rgba(52, 211, 153, 0.08);
+      --amber:      #fbbf24;
+      --amber-dim:  rgba(251, 191, 36, 0.08);
+      --text:       #dde6f5;
+      --text-sub:   #8294b8;
+      --text-muted: #3d5070;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      min-height: 100vh;
+    }
+
+    /* subtle dot bg */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: radial-gradient(rgba(34,211,238,0.045) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(7, 9, 26, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-2);
+      height: 56px;
+      display: flex; align-items: center;
+      padding: 0 2rem;
+    }
+
+    .nav-brand {
+      display: flex; align-items: center; gap: 0.6rem;
+      text-decoration: none;
+    }
+
+    .nav-icon {
+      width: 28px; height: 28px;
+      background: var(--cyan);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .nav-icon svg {
+      width: 14px; height: 14px;
+      stroke: var(--bg); fill: none;
+      stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    .nav-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem; font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+
+    .nav-sep {
+      width: 1px; height: 22px;
+      background: var(--border-2);
+      margin: 0 1rem;
+    }
+
+    .nav-page {
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .nav-right {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 1.25rem;
+    }
+
+    .nav-user {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.78rem; color: var(--text-sub);
+    }
+
+    .nav-avatar {
+      width: 26px; height: 26px;
+      background: var(--surface-3);
+      border: 1px solid var(--border-2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 500;
+      color: var(--cyan);
+    }
+
+    .nav-logout {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-decoration: none;
+      border: 1px solid var(--border-2);
+      border-radius: 3px;
+      padding: 0.3rem 0.65rem;
+      transition: color 0.18s, border-color 0.18s;
+    }
+
+    .nav-logout:hover {
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    /* ── MAIN ── */
+    main {
+      position: relative; z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem 4rem;
+    }
+
+    /* ── PAGE HEADER ── */
+    .page-header {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      margin-bottom: 2.25rem;
+      flex-wrap: wrap; gap: 1rem;
+      animation: fade-up 0.4s ease both;
+    }
+
+    .page-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.6rem; font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .page-sub {
+      margin-top: 0.25rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    #last-refresh {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+
+    .refresh-btn {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.45rem 0.85rem;
+      background: transparent;
+      border: 1px solid var(--border-2);
+      border-radius: 3px;
+      color: var(--text-sub);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: border-color 0.18s, color 0.18s;
+    }
+
+    .refresh-btn:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    .refresh-btn svg {
+      width: 13px; height: 13px;
+      stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+      transition: transform 0.6s;
+    }
+
+    .refresh-btn.spinning svg { animation: spin 0.6s linear; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── STAT CARDS ── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1.5rem 1.4rem 1.2rem;
+      position: relative; overflow: hidden;
+      animation: fade-up 0.4s ease both;
+      transition: border-color 0.25s, transform 0.2s;
+    }
+
+    .card:hover {
+      border-color: var(--border-2);
+      transform: translateY(-2px);
+    }
+
+    .card::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 2px;
+    }
+
+    .card-cyan   { --c: var(--cyan);   --c-dim: var(--cyan-dim);   }
+    .card-indigo { --c: var(--indigo); --c-dim: var(--indigo-dim); }
+    .card-green  { --c: var(--green);  --c-dim: var(--green-dim);  }
+    .card-amber  { --c: var(--amber);  --c-dim: var(--amber-dim);  }
+
+    .card::after       { background: var(--c); opacity: 0.7; }
+    .card:hover::after { opacity: 1; }
+
+    .card-icon-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.1rem;
+    }
+
+    .card-icon {
+      width: 36px; height: 36px;
+      background: var(--c-dim);
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .card-icon svg {
+      width: 17px; height: 17px;
+      stroke: var(--c); fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    .card-badge {
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--c);
+      background: var(--c-dim);
+      border-radius: 2px;
+      padding: 0.18rem 0.45rem;
+    }
+
+    .card-value {
+      font-family: 'Syne', sans-serif;
+      font-size: 2.4rem; font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 0.35rem;
+      min-height: 2.4rem;
+    }
+
+    .card-label {
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* skeleton shimmer */
+    .skeleton {
+      display: inline-block;
+      background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s infinite;
+      border-radius: 4px;
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* animations */
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card:nth-child(1) { animation-delay: 0s; }
+    .card:nth-child(2) { animation-delay: 0.06s; }
+    .card:nth-child(3) { animation-delay: 0.12s; }
+    .card:nth-child(4) { animation-delay: 0.18s; }
+
+    /* ── WS STATUS BADGE ── */
+    .ws-status {
+      display: flex; align-items: center; gap: 0.45rem;
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      padding: 0.25rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-muted);
+      transition: color 0.3s, border-color 0.3s;
+      white-space: nowrap;
+    }
+
+    .ws-status.connected    { color: var(--green);  border-color: rgba(52,211,153,0.35); }
+    .ws-status.reconnecting { color: var(--amber);  border-color: rgba(251,191,36,0.35); }
+    .ws-status.disconnected { color: var(--text-muted); border-color: var(--border); }
+
+    .ws-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+    }
+
+    .ws-status.connected    .ws-dot { animation: pulse-dot 2s ease-in-out infinite; }
+    .ws-status.reconnecting .ws-dot { animation: pulse-dot 0.8s ease-in-out infinite; }
+
+    @keyframes pulse-dot {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.25; }
+    }
+
+    /* responsive */
+    @media (max-width: 600px) {
+      main { padding: 1.5rem 1rem 3rem; }
+      nav  { padding: 0 1rem; }
+      .nav-sep, .nav-page, .ws-status { display: none; }
+      .page-title { font-size: 1.25rem; }
+      table { font-size: 0.72rem; }
+      thead th, tbody td { padding: 0.65rem 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a href="/admin/dashboard" class="nav-brand">
+    <div class="nav-icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+        <circle cx="12" cy="9" r="2.5"/>
+      </svg>
+    </div>
+    <span class="nav-name">TrackAdmin</span>
+  </a>
+  <div class="nav-sep"></div>
+  <span class="nav-page">Dashboard</span>
+  <div class="nav-right">
+    <div class="ws-status disconnected" id="ws-status">
+      <div class="ws-dot"></div>
+      <span id="ws-label">Connecting…</span>
+    </div>
+    <div class="nav-user">
+      <div class="nav-avatar">{{ admin_user[0] | upper }}</div>
+      {{ admin_user }}
+    </div>
+    <a href="/admin/logout" class="nav-logout">Logout</a>
+  </div>
+</nav>
+
+<!-- ── MAIN ── -->
+<main>
+
+  <!-- page header -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Overview</h1>
+      <p class="page-sub">Real-time tracking system · <span id="last-refresh">Loading...</span></p>
+    </div>
+    <button class="refresh-btn" id="refresh-btn" onclick="reconnect()">
+      <svg viewBox="0 0 24 24">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Reconnect
+    </button>
+  </div>
+
+  <!-- stat cards -->
+  <div class="cards-grid">
+
+    <div class="card card-cyan">
+      <div class="card-icon-row">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <span class="card-badge">Users</span>
+      </div>
+      <div class="card-value" id="val-users">
+        <span class="skeleton" style="width:60px; height:2.2rem;">&nbsp;</span>
+      </div>
+      <div class="card-label">Total Users Tracked</div>
+    </div>
+
+    <div class="card card-indigo">
+      <div class="card-icon-row">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="4"/>
+            <line x1="12" y1="2" x2="12" y2="8"/>
+            <line x1="12" y1="16" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="8" y2="12"/>
+            <line x1="16" y1="12" x2="22" y2="12"/>
+          </svg>
+        </div>
+        <span class="card-badge">Zones</span>
+      </div>
+      <div class="card-value" id="val-zones">
+        <span class="skeleton" style="width:60px; height:2.2rem;">&nbsp;</span>
+      </div>
+      <div class="card-label">Total Zone Records</div>
+    </div>
+
+    <div class="card card-green">
+      <div class="card-icon-row">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+        <span class="card-badge">24 h</span>
+      </div>
+      <div class="card-value" id="val-active">
+        <span class="skeleton" style="width:60px; height:2.2rem;">&nbsp;</span>
+      </div>
+      <div class="card-label">Active Users (24 h)</div>
+    </div>
+
+    <div class="card card-amber">
+      <div class="card-icon-row">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        </div>
+        <span class="card-badge">Zoned</span>
+      </div>
+      <div class="card-value" id="val-with-zones">
+        <span class="skeleton" style="width:60px; height:2.2rem;">&nbsp;</span>
+      </div>
+      <div class="card-label">Users with Zones</div>
+    </div>
+
+  </div>
+
+
+</main>
+
+<script>
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  function countUp(el, target, duration) {
+    duration = duration || 900;
+    var prev = parseInt(el.dataset.value) || 0;
+    // skip animation if value unchanged
+    if (prev === target) return;
+    el.dataset.value = target;
+    var start = performance.now();
+    function step(now) {
+      var progress = Math.min((now - start) / duration, 1);
+      var eased    = 1 - Math.pow(1 - progress, 4);
+      el.textContent = Math.round(prev + eased * (target - prev)).toLocaleString();
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function setCardValue(id, value) {
+    var el = document.getElementById(id);
+    countUp(el, value);
+  }
+
+  function applyData(data) {
+    setCardValue('val-users',      data.user_count);
+    setCardValue('val-zones',      data.zone_count);
+    setCardValue('val-active',     data.active_users_24h);
+    setCardValue('val-with-zones', data.users_with_zones);
+    document.getElementById('last-refresh').textContent =
+      'Updated ' + new Date().toLocaleTimeString();
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────────
+  var ws             = null;
+  var reconnectDelay = 1000;
+  var reconnectTimer = null;
+
+  function setStatus(state, label) {
+    var badge = document.getElementById('ws-status');
+    var text  = document.getElementById('ws-label');
+    badge.className = 'ws-status ' + state;
+    text.textContent = label;
+  }
+
+  function connect() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+    setStatus('reconnecting', 'Connecting…');
+    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(proto + '//' + location.host + '/admin/ws');
+
+    ws.onopen = function() {
+      setStatus('connected', 'Live');
+      reconnectDelay = 1000;
+      document.getElementById('refresh-btn').classList.remove('spinning');
+    };
+
+    ws.onmessage = function(event) {
+      try { applyData(JSON.parse(event.data)); }
+      catch(e) { console.error('WS parse error', e); }
+    };
+
+    ws.onclose = function(event) {
+      // 1008 = auth failure → redirect to login
+      if (event.code === 1008) {
+        window.location.href = '/admin/login';
+        return;
+      }
+      setStatus('disconnected', 'Disconnected');
+      scheduleReconnect();
+    };
+
+    ws.onerror = function() {
+      ws.close();
+    };
+  }
+
+  function scheduleReconnect() {
+    clearTimeout(reconnectTimer);
+    setStatus('reconnecting', 'Retry in ' + Math.round(reconnectDelay / 1000) + 's…');
+    reconnectTimer = setTimeout(function() {
+      reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+      connect();
+    }, reconnectDelay);
+  }
+
+  function reconnect() {
+    clearTimeout(reconnectTimer);
+    reconnectDelay = 1000;
+    document.getElementById('refresh-btn').classList.add('spinning');
+    if (ws) ws.close();
+    connect();
+  }
+
+  // Start on page load
+  connect();
+</script>
+</body>
+</html>
