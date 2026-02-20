@@ -271,7 +271,7 @@ def register_user(data: UserRequest):
     return {"status": "ok", "message_id": message_id}
 
 
-@app.post("/kids")
+@app.post("/tags")
 def register_kid(data: KidRequest):
     if not GCP_PROJECT_ID:
         raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
@@ -283,7 +283,7 @@ def register_kid(data: KidRequest):
         "timestamp": datetime.now().isoformat(),
     }
 
-    print(f"[API] Kid registration: {message}")
+    print(f"[API] tag registration: {message}")
     topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_KIDS_TOPIC)
     future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
     message_id = future.result()

@@ -15,7 +15,7 @@ resource "google_bigquery_table" "table" {
   schema = <<EOF
 [
 	{"name": "timestamp", "type": "TIMESTAMP", "mode": "REQUIRED"},
-	{"name": "user_id", "type": "STRING", "mode": "REQUIRED"},
+	{"name": "tag_id", "type": "STRING", "mode": "REQUIRED"},
 	{"name": "latitude", "type": "FLOAT", "mode": "REQUIRED"},
 	{"name": "longitude", "type": "FLOAT", "mode": "REQUIRED"}
 ]
