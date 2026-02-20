@@ -16,17 +16,8 @@ resource "google_secret_manager_secret" "github_oauth_token" {
 }
 
 data "google_secret_manager_secret_version" "github_oauth_token" {
-  secret  = google_secret_manager_secret.github_oauth_token.id
+  secret  = "projects/787549761080/secrets/github-oauth-token"
   version = "latest"
-}
-
-resource "google_secret_manager_secret_version" "github_oauth_token_version" {
-  secret      = google_secret_manager_secret.github_oauth_token.id
-  secret_data = data.google_secret_manager_secret_version.github_oauth_token.secret_data
-
-  lifecycle {
-    ignore_changes = [secret_data]
-  }
 }
 
 resource "google_secret_manager_secret_iam_member" "cloudbuild_github_token_access" {
