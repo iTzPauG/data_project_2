@@ -163,8 +163,15 @@ variable "github_app_installation_id" {
   type        = number
 }
 
-variable "github_oauth_token" {
-  description = "GitHub OAuth token for Cloud Build v2 connection"
+variable "mapbox_token" {
+  description = "Mapbox public token for the frontend map"
   type        = string
   sensitive   = true
 }
+
+variable "vite_ws_url" {
+  description = "WebSocket URL for the frontend (e.g. wss://<api-url>/ws)"
+  type        = string
+  default     = ""
+}
+
