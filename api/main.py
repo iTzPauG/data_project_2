@@ -209,7 +209,7 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
 
     # B) Enviar a Pub/Sub (Para que Dataflow se entere)
     message_dict = {
-        "id": db_zone.id,
+        "id": f"{db_zone.user_id}-{db_zone.timestamp}",
         "user_id": str(zone.user_id),
         "latitude": zone.latitude,
         "longitude": zone.longitude,
@@ -224,7 +224,7 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         except Exception as e:
             print(f"Error PubSub Zone: {e}")
 
-    return {"status": "ok", "db_id": db_zone.id}
+    return {"status": "ok", "db_id": f"{db_zone.user_id}-{db_zone.timestamp}"}
 
 # 3. LEER ZONAS (NUEVO - Esto es lo que busca tu Frontend)
 @app.get("/zones")
@@ -240,18 +240,6 @@ def get_zones(db: Session = Depends(get_db)):
         } 
         for z in zones
     ]
-
-# 4. WebSocket (Legacy)
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-    return {"status": "ok", "message_id": message_id}
-
 
 @app.post("/users")
 def register_user(data: UserRequest):

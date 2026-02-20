@@ -13,16 +13,14 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // API de Cloud Run
-const API_URL = 'https://api-787549761080.europe-west6.run.app'; 
+const API_URL = import.meta.env.VITE_API_URL;
 
 // ⚠️ CAMBIADO A 98 PARA QUE APAREZCAN LAS ZONAS
-const TARGET_USER_ID = "94"; 
-const COLLECTION_NAME = "locations"; 
+const TARGET_USER_ID = "94";
+const COLLECTION_NAME = "locations";
 
 // URL del WebSocket de tu API (FastAPI)
-// NOTA: Si estás en local usa 'ws://localhost:8000/ws/locations'
-// Si estás en Cloud Run usa 'wss://tu-url-de-cloud-run.app/ws/locations'
-const WS_URL = 'ws://localhost:8000/ws/locations';
+const WS_URL = import.meta.env.VITE_WS_URL;
 
 const INITIAL_VIEW_STATE = {
   longitude: -0.376288, // Valencia Centro
@@ -138,7 +136,7 @@ export default function App() {
     // Capa 1: Zonas Prohibidas (Estática)
     new PolygonLayer({
       id: 'zonas-estaticas',
-      data: ZONA_ESTATICA,
+      data: ZONA_ROJA,
       getPolygon: d => d.polygon,
       getFillColor: [100, 100, 100, 50],
       getLineColor: [100, 100, 100, 255],
