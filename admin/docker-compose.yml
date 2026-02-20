@@ -1,0 +1,11 @@
+services:
+  admin:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      # Mount local GCP Application Default Credentials for Firestore access
+      - ~/.config/gcloud/application_default_credentials.json:/tmp/adc.json:ro
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/adc.json

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrackAdmin · Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #07091a;
+      --surface:     #0c1124;
+      --surface-2:   #111827;
+      --border:      rgba(100, 130, 200, 0.12);
+      --border-foc:  rgba(34, 211, 238, 0.5);
+      --accent:      #22d3ee;
+      --accent-glow: rgba(34, 211, 238, 0.06);
+      --text:        #dde6f5;
+      --text-sub:    #8294b8;
+      --text-muted:  #3d5070;
+      --error:       #fb7185;
+      --error-bg:    rgba(251, 113, 133, 0.07);
+      --error-bdr:   rgba(251, 113, 133, 0.22);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    /* dot-grid */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: radial-gradient(rgba(34,211,238,0.065) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ambient top glow */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -30vh; left: 50%; transform: translateX(-50%);
+      width: 70vw; height: 70vw; max-width: 900px;
+      background: radial-gradient(ellipse, rgba(34,211,238,0.045) 0%, transparent 65%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .wrap {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 2rem 1.5rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--accent);
+      border-radius: 4px;
+      padding: 2.75rem 2.5rem 2.25rem;
+      width: 100%; max-width: 390px;
+      position: relative;
+      animation: rise 0.55s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* bracket corners */
+    .card::before,
+    .card::after {
+      content: '';
+      position: absolute;
+      width: 20px; height: 20px;
+    }
+    .card::before {
+      bottom: -1px; right: -1px;
+      border-bottom: 2px solid var(--accent);
+      border-right:  2px solid var(--accent);
+      border-radius: 0 0 4px 0;
+    }
+
+    /* ── brand ── */
+    .brand { margin-bottom: 2.25rem; }
+
+    .brand-row {
+      display: flex; align-items: center; gap: 0.65rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .brand-icon {
+      width: 34px; height: 34px;
+      background: var(--accent);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .brand-icon svg {
+      width: 18px; height: 18px;
+      stroke: var(--bg);
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .brand-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .brand-sub {
+      font-size: 0.62rem;
+      font-weight: 400;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ── error box ── */
+    .error-box {
+      display: flex; align-items: center; gap: 0.65rem;
+      background: var(--error-bg);
+      border: 1px solid var(--error-bdr);
+      border-radius: 3px;
+      padding: 0.6rem 0.85rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.77rem;
+      color: var(--error);
+      animation: shake 0.4s ease both;
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-4px); }
+      60%      { transform: translateX(4px); }
+    }
+
+    .error-dot {
+      width: 18px; height: 18px; flex-shrink: 0;
+      background: var(--error);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--bg);
+    }
+
+    /* ── form ── */
+    .form-group { margin-bottom: 1.15rem; }
+
+    label {
+      display: block;
+      font-size: 0.62rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-sub);
+      margin-bottom: 0.45rem;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.72rem 0.9rem;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+      -webkit-appearance: none;
+    }
+
+    input:focus {
+      border-color: var(--border-foc);
+      background: var(--accent-glow);
+      box-shadow: 0 0 0 3px rgba(34,211,238,0.07);
+    }
+
+    input::placeholder { color: var(--text-muted); }
+
+    /* ── button ── */
+    .btn {
+      width: 100%;
+      margin-top: 1.65rem;
+      padding: 0.78rem 1rem;
+      background: var(--accent);
+      border: none; border-radius: 3px;
+      color: var(--bg);
+      font-family: 'Syne', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: opacity 0.18s, transform 0.14s;
+      position: relative; overflow: hidden;
+    }
+
+    .btn::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+      transform: translateX(-100%);
+      transition: transform 0.4s;
+    }
+
+    .btn:hover::after { transform: translateX(100%); }
+    .btn:hover        { opacity: 0.9; }
+    .btn:active       { transform: scale(0.98); }
+
+    /* ── footer ── */
+    .card-footer {
+      margin-top: 1.75rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .status-dot {
+      display: flex; align-items: center; gap: 0.45rem;
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+    }
+
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 6px #34d399;
+      animation: pulse-dot 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.4; }
+    }
+
+    .footer-label {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+
+    <div class="brand">
+      <div class="brand-row">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+            <circle cx="12" cy="9" r="2.5"/>
+          </svg>
+        </div>
+        <span class="brand-name">TrackAdmin</span>
+      </div>
+      <div class="brand-sub">Restricted Access</div>
+    </div>
+
+    {% if error %}
+    <div class="error-box">
+      <div class="error-dot">!</div>
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form action="/admin/login" method="POST" autocomplete="on">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username"
+               placeholder="admin" autocomplete="username" required autofocus>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password"
+               placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn">Sign in →</button>
+    </form>
+
+    <div class="card-footer">
+      <div class="status-dot">
+        <div class="dot"></div>
+        System operational
+      </div>
+      <span class="footer-label">v1.0</span>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

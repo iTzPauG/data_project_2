@@ -3,6 +3,11 @@ data "google_secret_manager_secret_version" "mapbox_token" {
   version = "latest"
 }
 
+data "google_secret_manager_secret_version" "admin_secret_key" {
+  secret  = "admin-secret-key"
+  version = "latest"
+}
+
 resource "google_secret_manager_secret" "github_oauth_token" {
   secret_id = "github-oauth-token"
   replication {
