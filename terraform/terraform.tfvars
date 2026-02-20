@@ -17,8 +17,8 @@ firestore_locations_collection = "locations"
 firestore_metadata_collection  = "metadata"
 
 # Dataflow Configuration
-dataflow_job_name      = "location-streaming-pipeline"
-dataflow_max_workers   = 10
+dataflow_job_name    = "location-streaming-pipeline"
+dataflow_max_workers = 10
 dataflow_worker_region = "europe-west6"
 
 # Service Account
@@ -28,13 +28,10 @@ dataflow_service_account_name = "dataflow-runner"
 cloudsql_instance_name = "main-cloudsql-instance"
 cloudsql_db_name       = "appdb"
 cloudsql_user          = "appuser"
+cloudsql_password      = "your-secure-password" # Set via TF_VAR_cloudsql_password env variable
 zones_sql_table        = "zones"
 
 # GitHub CI/CD Configuration
 github_owner               = "iTzPauG"
 github_repo_name           = "data_project_2"
 github_app_installation_id = 106823541
-
-# Frontend Configuration
-mapbox_token = "pk.eyJ1IjoiamVqZWp1YXNqdWFzIiwiYSI6ImNtbHV6amVjZTAyeG8zY3NiZDB4dTZ0NnUifQ.YIpJ6IsPVl90xHI8PShF7A"
-vite_ws_url  = "wss://api-uuusvlh2sa-oa.a.run.app/ws"
