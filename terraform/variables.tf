@@ -123,11 +123,6 @@ variable "cloudsql_user" {
   default     = "appuser"
 }
 
-variable "cloudsql_password" {
-  description = "Cloud SQL user password"
-  type        = string
-  sensitive   = true
-}
 variable "dataflow_service_account_name" {
   description = "Service account name for Dataflow"
   type        = string
