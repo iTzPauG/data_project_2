@@ -57,7 +57,7 @@ Base = declarative_base()
 # --- MODELO DB (La tabla que guardará las zonas) ---
 class ZoneDB(Base):
     __tablename__ = "zones"
-    user_id = Column(String, primary_key=True)
+    tag_id = Column(String, primary_key=True)
     latitude = Column(Float)
     longitude = Column(Float)
     radius = Column(Float)
@@ -105,13 +105,13 @@ manager = ConnectionManager()
 
 # --- MODELOS PYDANTIC (Validación) ---
 class LocationRequest(BaseModel):
-    user_id: Union[str, int]
+    tag_id: Union[str, int]
     latitude: float
     longitude: float
     timestamp: Optional[str] = None
 
 class ZoneRequest(BaseModel):
-    user_id: Union[str, int]
+    tag_id: Union[str, int]
     latitude: float
     longitude: float
     radius: float
@@ -152,7 +152,7 @@ class UserRequest(BaseModel):
 
 
 class KidRequest(BaseModel):
-    kid_id: Union[str, int]
+    tag_id: Union[str, int]
     nombre: str
     user_id: Union[str, int]
 
@@ -163,7 +163,7 @@ class KidRequest(BaseModel):
 @app.post("/location")
 async def publish_location(data: LocationRequest):
     message_dict = {
-        "user_id": str(data.user_id),
+        "tag_id": str(data.tag_id),
         "latitude": data.latitude,
         "longitude": data.longitude,
         "timestamp": data.timestamp or datetime.now().isoformat(),
@@ -189,7 +189,7 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
     # A) Guardar en Base de Datos (Cloud SQL / SQLite)
     try:
         db_zone = ZoneDB(
-            user_id=str(zone.user_id),
+            tag_id=str(zone.tag_id),
             latitude=zone.latitude,
             longitude=zone.longitude,
             radius=zone.radius,
@@ -205,7 +205,7 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
     # B) Enviar a Pub/Sub (Para que Dataflow se entere)
     message_dict = {
         "id": db_zone.id,
-        "user_id": str(zone.user_id),
+        "tag_id": str(zone.tag_id),
         "latitude": zone.latitude,
         "longitude": zone.longitude,
         "radius": zone.radius,
@@ -227,11 +227,11 @@ def get_zones(db: Session = Depends(get_db)):
     zones = db.query(ZoneDB).all()
     return [
         {
-            "id": f"{z.user_id}-{z.timestamp}", # Generamos un ID inventado para que React sea feliz
+            "id": f"{z.tag_id}-{z.timestamp}", # Generamos un ID inventado para que React sea feliz
             "latitude": z.latitude, 
             "longitude": z.longitude, 
             "radius": z.radius,
-            "user_id": z.user_id
+            "tag_id": z.tag_id
         } 
         for z in zones
     ]
@@ -245,7 +245,6 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-    return {"status": "ok", "message_id": message_id}
 
 
 @app.post("/users")
@@ -278,7 +277,7 @@ def register_kid(data: KidRequest):
         raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
 
     message = {
-        "kid_id": str(data.kid_id),
+        "tag_id": str(data.tag_id),
         "nombre": data.nombre,
         "user_id": str(data.user_id),
         "timestamp": datetime.now().isoformat(),
