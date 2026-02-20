@@ -21,7 +21,7 @@ def read_positions_from_csv(filename):
     Read positions from a CSV file.
     
     Args:
-        filename: Path to CSV file with format: user_id,timestamp,latitude,longitude,node_id,street_name,road_type,poi_name,poi_type
+        filename: Path to CSV file with format: tag_id,timestamp,latitude,longitude,node_id,street_name,road_type,poi_name,poi_type
         
     Returns:
         List of dictionaries with position data
@@ -36,7 +36,7 @@ def read_positions_from_csv(filename):
                 continue
             try:
                 positions.append({
-                    'user_id': row.get('user_id', '1'),
+                    'tag_id': row.get('tag_id', '1'),
                     'timestamp': row.get('timestamp', ''),
                     'latitude': float(row['latitude']),
                     'longitude': float(row['longitude']),
@@ -255,13 +255,13 @@ def create_map_html(positions):
     if not positions:
         return "<html><body><h1>No positions to display</h1></body></html>"
     
-    # Group positions by user_id
-    users = {}
+    # Group positions by tag_id
+    tags = {}
     for pos in positions:
-        user_id = pos.get('user_id', '1')
-        if user_id not in users:
-            users[user_id] = []
-        users[user_id].append(pos)
+        tag_id = pos.get('tag_id', '1')
+        if tag_id not in tags:
+            tags[tag_id] = []
+        tags[tag_id].append(pos)
     
     # Calculate center point from all positions
     avg_lat = sum(p['latitude'] for p in positions) / len(positions)
@@ -274,16 +274,16 @@ def create_map_html(positions):
         tiles='OpenStreetMap'
     )
     
-    # Color palette for different users
+    # Color palette for different tags
     colors = ['blue', 'red', 'green', 'purple', 'orange', 'darkred', 
               'lightred', 'beige', 'darkblue', 'darkgreen', 'cadetblue', 
               'darkpurple', 'pink', 'lightblue', 'lightgreen', 'gray', 
               'black', 'lightgray']
     
-    # Draw path for each user
-    for idx, (user_id, user_positions) in enumerate(users.items()):
+    # Draw path for each tag
+    for idx, (tag_id, tag_positions) in enumerate(tags.items()):
         color = colors[idx % len(colors)]
-        coordinates = [[p['latitude'], p['longitude']] for p in user_positions]
+        coordinates = [[p['latitude'], p['longitude']] for p in tag_positions]
         
         # Add the movement path
         folium.PolyLine(
@@ -291,30 +291,30 @@ def create_map_html(positions):
             color=color,
             weight=3,
             opacity=0.7,
-            popup=f'User {user_id} Track'
+            popup=f'Tag {tag_id} Track'
         ).add_to(m)
         
         # Start point
-        start_popup = f"User {user_id} Start<br>{user_positions[0].get('timestamp', 'N/A')}<br>{user_positions[0].get('street_name', 'Unknown')}<br>Type: {user_positions[0].get('road_type', 'N/A')}"
-        poi_name = user_positions[0].get('poi_name', '')
-        poi_type = user_positions[0].get('poi_type', '')
+        start_popup = f"Tag {tag_id} Start<br>{tag_positions[0].get('timestamp', 'N/A')}<br>{tag_positions[0].get('street_name', 'Unknown')}<br>Type: {tag_positions[0].get('road_type', 'N/A')}"
+        poi_name = tag_positions[0].get('poi_name', '')
+        poi_type = tag_positions[0].get('poi_type', '')
         if poi_name or poi_type:
             start_popup += f"<br>Near: {poi_name if poi_name else poi_type}"
         folium.Marker(
-            location=[user_positions[0]['latitude'], user_positions[0]['longitude']],
+            location=[tag_positions[0]['latitude'], tag_positions[0]['longitude']],
             popup=start_popup,
             icon=folium.Icon(color=color if color in ['red', 'blue', 'green', 'purple', 'orange', 'darkred', 'lightred', 'beige', 'darkblue', 'darkgreen', 'cadetblue', 'darkpurple', 'pink', 'lightblue', 'lightgreen', 'gray', 'black', 'lightgray'] else 'blue', 
                            icon='play', prefix='fa')
         ).add_to(m)
         
         # End point (current position)
-        current_popup = f"User {user_id} Current<br>{user_positions[-1].get('timestamp', 'N/A')}<br>{user_positions[-1].get('street_name', 'Unknown')}<br>Type: {user_positions[-1].get('road_type', 'N/A')}"
-        poi_name = user_positions[-1].get('poi_name', '')
-        poi_type = user_positions[-1].get('poi_type', '')
+        current_popup = f"Tag {tag_id} Current<br>{tag_positions[-1].get('timestamp', 'N/A')}<br>{tag_positions[-1].get('street_name', 'Unknown')}<br>Type: {tag_positions[-1].get('road_type', 'N/A')}"
+        poi_name = tag_positions[-1].get('poi_name', '')
+        poi_type = tag_positions[-1].get('poi_type', '')
         if poi_name or poi_type:
             current_popup += f"<br>Near: {poi_name if poi_name else poi_type}"
         folium.CircleMarker(
-            location=[user_positions[-1]['latitude'], user_positions[-1]['longitude']],
+            location=[tag_positions[-1]['latitude'], tag_positions[-1]['longitude']],
             radius=8,
             popup=current_popup,
             color=color,
@@ -344,12 +344,12 @@ def create_map_html(positions):
                 bottom: 50px; right: 50px; width: 200px; height: auto; 
                 background-color: white; border:2px solid grey; z-index:9999; 
                 font-size:14px; padding: 10px">
-    <p style="margin:0; font-weight: bold;">Active Users: {len(users)}</p>
+    <p style="margin:0; font-weight: bold;">Active Tags: {len(tags)}</p>
     <hr style="margin: 5px 0;">
     '''
-    for idx, user_id in enumerate(users.keys()):
+    for idx, tag_id in enumerate(tags.keys()):
         color = colors[idx % len(colors)]
-        legend_html += f'<p style="margin:2px 0;"><span style="color:{color};">●</span> User {user_id}</p>'
+        legend_html += f'<p style="margin:2px 0;"><span style="color:{color};">●</span> Tag {tag_id}</p>'
     legend_html += '</div>'
     
     m.get_root().html.add_child(folium.Element(legend_html))
