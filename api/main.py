@@ -15,6 +15,8 @@ app = FastAPI(title="Location & Zone Ingestion API")
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 PUBSUB_LOCATION_TOPIC = os.environ.get("PUBSUB_LOCATION_TOPIC", "incoming-location-data")
 PUBSUB_ZONE_TOPIC = os.environ.get("PUBSUB_ZONE_TOPIC", "zone-data")
+PUBSUB_USER_TOPIC = os.environ.get("PUBSUB_USER_TOPIC", "user-data")
+PUBSUB_KIDS_TOPIC = os.environ.get("PUBSUB_KIDS_TOPIC", "kids-data")
 
 # Lazy-initialized client
 _publisher = None
@@ -80,6 +82,22 @@ class ZoneRequest(BaseModel):
         return v
 
 
+class UserRequest(BaseModel):
+    user_id: Union[str, int]
+    username: str
+    nombre: str
+    apellidos: str
+    password: str
+    correo: str
+    telefono: str
+
+
+class KidRequest(BaseModel):
+    kid_id: Union[str, int]
+    nombre: str
+    user_id: Union[str, int]
+
+
 # --- Endpoints ---
 
 @app.post("/location")
@@ -127,6 +145,50 @@ async def create_zone(request: Request):
 
     print(f"[API] mensaje publicado: {message}")
     topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_ZONE_TOPIC)
+    future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
+    message_id = future.result()
+
+    return {"status": "ok", "message_id": message_id}
+
+
+@app.post("/users")
+def register_user(data: UserRequest):
+    if not GCP_PROJECT_ID:
+        raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
+
+    message = {
+        "user_id": str(data.user_id),
+        "username": data.username,
+        "nombre": data.nombre,
+        "apellidos": data.apellidos,
+        "password": data.password,
+        "correo": data.correo,
+        "telefono": data.telefono,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+    print(f"[API] User registration: {message}")
+    topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_USER_TOPIC)
+    future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
+    message_id = future.result()
+
+    return {"status": "ok", "message_id": message_id}
+
+
+@app.post("/kids")
+def register_kid(data: KidRequest):
+    if not GCP_PROJECT_ID:
+        raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
+
+    message = {
+        "kid_id": str(data.kid_id),
+        "nombre": data.nombre,
+        "user_id": str(data.user_id),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+    print(f"[API] Kid registration: {message}")
+    topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_KIDS_TOPIC)
     future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
     message_id = future.result()
 

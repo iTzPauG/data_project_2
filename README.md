@@ -403,6 +403,26 @@ Apache 2.0
 
 ---
 
+## CI/CD con Cloud Build y GitHub (seguro)
+
+### Token de GitHub
+- **Nunca subas el token a GitHub ni a archivos versionados.**
+- Usa la variable sensible `github_oauth_token` en Terraform.
+- Antes de ejecutar `terraform apply`, exporta el token en tu entorno:
+
+```bash
+export TF_VAR_github_oauth_token="<TU_TOKEN>"
+terraform apply
+```
+
+Esto creará el secreto y la versión en Secret Manager, accesible solo por Cloud Build.
+
+### Flujo reproducible
+- Cualquier persona puede clonar el repo, exportar su token y ejecutar `terraform apply`.
+- El token nunca queda en archivos ni en el código.
+
+---
+
 **Last Updated**: February 2, 2024
 **Region**: europe-southwest1
 **Database**: Firestore (NoSQL)

@@ -40,6 +40,18 @@ variable "zone_data_topic_name" {
   default     = "zone-data"
 }
 
+variable "user_data_topic_name" {
+  description = "Name of the user data topic"
+  type        = string
+  default     = "user-data"
+}
+
+variable "kids_data_topic_name" {
+  description = "Name of the kids data topic"
+  type        = string
+  default     = "kids-data"
+}
+
 # Firestore Variables
 variable "firestore_database_name" {
   description = "Firestore database name"
@@ -133,4 +145,26 @@ variable "cloud_run_allow_unauthenticated" {
   description = "Allow unauthenticated access to Cloud Run service"
   type        = bool
   default     = true
+}
+
+# GitHub Variables (for CI/CD)
+variable "github_owner" {
+  description = "GitHub username or organization"
+  type        = string
+}
+
+variable "github_repo_name" {
+  description = "GitHub repository name (without owner)"
+  type        = string
+}
+
+variable "github_app_installation_id" {
+  description = "GitHub App installation ID for Cloud Build. Get it from: https://github.com/settings/installations"
+  type        = number
+}
+
+variable "github_oauth_token" {
+  description = "GitHub OAuth token for Cloud Build v2 connection"
+  type        = string
+  sensitive   = true
 }

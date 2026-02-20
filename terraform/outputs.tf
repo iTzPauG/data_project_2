@@ -69,5 +69,10 @@ output "summary" {
       temp_bucket     = google_storage_bucket.dataflow_temp.name
       region          = var.gcp_region
     }
+    cloudbuild = {
+      trigger_name       = google_cloudbuild_trigger.github_main.name
+      github_connection  = google_cloudbuildv2_connection.github.name
+      github_repository  = google_cloudbuildv2_repository.main.name
+    }
   }
 }

@@ -71,6 +71,50 @@ resource "google_pubsub_subscription" "incoming_zone_data_subscription" {
   }
 }
 
+# User data topic (for user registration)
+resource "google_pubsub_topic" "incoming_user_data" {
+  name = var.user_data_topic_name
+
+  labels = {
+    environment = var.environment
+    purpose     = "incoming-user-data"
+  }
+}
+
+# Subscription for incoming user data
+resource "google_pubsub_subscription" "incoming_user_data_subscription" {
+  name                 = "${var.user_data_topic_name}-subscription"
+  topic                = google_pubsub_topic.incoming_user_data.name
+  ack_deadline_seconds = 60
+
+  labels = {
+    environment = var.environment
+    consumer    = "applications"
+  }
+}
+
+# Kids data topic (for kids registration)
+resource "google_pubsub_topic" "incoming_kids_data" {
+  name = var.kids_data_topic_name
+
+  labels = {
+    environment = var.environment
+    purpose     = "incoming-kids-data"
+  }
+}
+
+# Subscription for incoming kids data
+resource "google_pubsub_subscription" "incoming_kids_data_subscription" {
+  name                 = "${var.kids_data_topic_name}-subscription"
+  topic                = google_pubsub_topic.incoming_kids_data.name
+  ack_deadline_seconds = 60
+
+  labels = {
+    environment = var.environment
+    consumer    = "applications"
+  }
+}
+
 # Output topic names and subscription names for reference
 output "pubsub_topics" {
   description = "Pub/Sub topic names and their subscriptions"
@@ -86,6 +130,14 @@ output "pubsub_topics" {
     incoming_zone = {
       topic        = google_pubsub_topic.incoming_zone_data.name
       subscription = google_pubsub_subscription.incoming_zone_data_subscription.name
+    }
+    incoming_user = {
+      topic        = google_pubsub_topic.incoming_user_data.name
+      subscription = google_pubsub_subscription.incoming_user_data_subscription.name
+    }
+    incoming_kids = {
+      topic        = google_pubsub_topic.incoming_kids_data.name
+      subscription = google_pubsub_subscription.incoming_kids_data_subscription.name
     }
   }
 }
