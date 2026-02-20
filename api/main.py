@@ -153,7 +153,6 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
             longitude=zone.longitude,
             radius=zone.radius,
             timestamp=datetime.utcnow(),
-            node_id=zone.node_id
         )
         db.add(db_zone)
         db.commit()
@@ -184,13 +183,10 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
 # 3. LEER ZONAS (NUEVO - Esto es lo que busca tu Frontend)
 @app.get("/zones")
 def get_zones(db: Session = Depends(get_db)):
-    # 1. Obtenemos todas las zonas de la base de datos
     zones = db.query(ZoneDB).all()
-    
-    # 2. Las convertimos a un formato limpio que React entienda a la primera (JSON)
     return [
         {
-            "id": z.id,
+            "id": f"{z.user_id}-{z.timestamp}", # Generamos un ID inventado para que React sea feliz
             "latitude": z.latitude, 
             "longitude": z.longitude, 
             "radius": z.radius,

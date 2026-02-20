@@ -16,7 +16,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const API_URL = 'https://api-787549761080.europe-west6.run.app'; 
 
 // ⚠️ CAMBIADO A 98 PARA QUE APAREZCAN LAS ZONAS
-const TARGET_USER_ID = "98"; 
+const TARGET_USER_ID = "94"; 
 const COLLECTION_NAME = "locations"; 
 
 const INITIAL_VIEW_STATE = {
