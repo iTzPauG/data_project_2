@@ -83,12 +83,20 @@ export default function App() {
 
   // --- 4. MANEJADORES ---
 
-  const handleSaveKid = () => {
+  const handleSaveKid = async () => {
     if (!kidName.trim() || !deviceTag.trim()) return;
-    const newKid = { name: kidName, tag_id: deviceTag };
-    setKids([...kids, newKid]); 
-    console.log("🛠️ Enviar Niño a API:", { nombre: kidName, tag_id: deviceTag, user_id: TARGET_USER_ID });
-    setKidName(""); setDeviceTag(""); setShowKidModal(false);
+    try {
+      await axios.post(`${API_URL}/tags`, {
+        tag_id: deviceTag,
+        nombre: kidName,
+        user_id: TARGET_USER_ID,
+      });
+      setKids([...kids, { name: kidName, tag_id: deviceTag }]);
+      setKidName(""); setDeviceTag(""); setShowKidModal(false);
+    } catch (error) {
+      console.error("Error registering kid:", error);
+      alert("Error al registrar el niño.");
+    }
   };
 
   const handleMiniMapClick = (info) => {
@@ -97,23 +105,25 @@ export default function App() {
     }
   };
 
-  const handleSaveZone = () => {
+  const handleSaveZone = async () => {
     if (!nuevaZona.latitude || !nuevaZona.tag_id) {
       alert("Por favor, selecciona un punto en el mapa y asigna un niño.");
       return;
     }
-    
-    console.log("🛠️ Enviar Zona a API:", {
-      tag_id: nuevaZona.tag_id,
-      latitude: nuevaZona.latitude,
-      longitude: nuevaZona.longitude,
-      radius: nuevaZona.radius
-    });
-
-    setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: TARGET_USER_ID }]);
-    // MODIFICADO: Vuelve a 50 metros tras guardar
-    setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "" });
-    setShowZoneModal(false);
+    try {
+      await axios.post(`${API_URL}/zone`, {
+        tag_id: nuevaZona.tag_id,
+        latitude: nuevaZona.latitude,
+        longitude: nuevaZona.longitude,
+        radius: nuevaZona.radius,
+      });
+      setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: TARGET_USER_ID }]);
+      setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "" });
+      setShowZoneModal(false);
+    } catch (error) {
+      console.error("Error saving zone:", error);
+      alert("Error al guardar la zona.");
+    }
   };
 
   // --- 5. CAPAS MAPA PRINCIPAL ---

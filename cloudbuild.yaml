@@ -72,27 +72,27 @@ steps:
   # Step 4: Run Dataflow Flex Template job
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Run Dataflow Job'
-    entrypoint: gcloud
+    secretEnv: ['DB_PASS']
+    entrypoint: bash
     args:
-      - 'dataflow'
-      - 'flex-template'
-      - 'run'
-      - '${_DATAFLOW_JOB_NAME}-$SHORT_SHA'
-      - '--template-file-gcs-location=gs://${_DATAFLOW_BUCKET}/templates/location-pipeline.json'
-      - '--region=${_REGION}'
-      - '--max-workers=${_MAX_WORKERS}'
-      - '--service-account-email=${_DATAFLOW_SERVICE_ACCOUNT}'
-      - '--parameters=input_subscription=projects/$PROJECT_ID/subscriptions/${_INPUT_SUBSCRIPTION}'
-      - '--parameters=output_notifications_topic=projects/$PROJECT_ID/topics/${_NOTIFICATIONS_TOPIC}'
-      - '--parameters=project_id=$PROJECT_ID'
-      - '--parameters=firestore_database=${_FIRESTORE_DATABASE}'
-      - '--parameters=firestore_collection=${_FIRESTORE_COLLECTION}'
-      - '--parameters=db_host=${_DB_HOST}'
-      - '--parameters=db_name=${_DB_NAME}'
-      - '--parameters=db_user=${_DB_USER}'
-      - '--parameters=db_pass=${_DB_PASS}'
-      - '--parameters=bq_dataset=${_BQ_DATASET}'
-      - '--parameters=bq_table=${_BQ_TABLE}'
+      - '-c'
+      - |
+        gcloud dataflow flex-template run "${_DATAFLOW_JOB_NAME}-${SHORT_SHA}" \
+          --template-file-gcs-location="gs://${_DATAFLOW_BUCKET}/templates/location-pipeline.json" \
+          --region="${_REGION}" \
+          --max-workers="${_MAX_WORKERS}" \
+          --service-account-email="${_DATAFLOW_SERVICE_ACCOUNT}" \
+          --parameters=input_subscription="projects/$PROJECT_ID/subscriptions/${_INPUT_SUBSCRIPTION}" \
+          --parameters=output_notifications_topic="projects/$PROJECT_ID/topics/${_NOTIFICATIONS_TOPIC}" \
+          --parameters=project_id="$PROJECT_ID" \
+          --parameters=firestore_database="${_FIRESTORE_DATABASE}" \
+          --parameters=firestore_collection="${_FIRESTORE_COLLECTION}" \
+          --parameters=db_host="${_DB_HOST}" \
+          --parameters=db_name="${_DB_NAME}" \
+          --parameters=db_user="${_DB_USER}" \
+          --parameters=db_pass="$$DB_PASS" \
+          --parameters=bq_dataset="${_BQ_DATASET}" \
+          --parameters=bq_table="${_BQ_TABLE}"
     waitFor: ['Build Dataflow Flex Template']
 
   # Step 5: Deploy API to Cloud Run
@@ -109,6 +109,11 @@ steps:
       - '--allow-unauthenticated'
       - '--set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,PUBSUB_LOCATION_TOPIC=${_LOCATION_TOPIC},PUBSUB_ZONE_TOPIC=${_ZONE_TOPIC},PUBSUB_USER_TOPIC=${_USER_TOPIC},PUBSUB_KIDS_TOPIC=${_KIDS_TOPIC}'
     waitFor: ['Push API Image']
+
+availableSecrets:
+  secretManager:
+  - versionName: projects/$PROJECT_ID/secrets/cloudsql-password/versions/latest
+    env: 'DB_PASS'
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -127,7 +132,6 @@ substitutions:
   _DB_HOST: '34.65.160.231'
   _DB_NAME: 'appdb'
   _DB_USER: 'appuser'
-  _DB_PASS: 'your-secure-password'
   _BQ_DATASET: 'prod_dataset'
   _BQ_TABLE: 'location_events'
   _CLOUDRUN_SERVICE_NAME: 'location-api'
