@@ -114,7 +114,7 @@ resource "google_cloudfunctions2_function" "zone_data_to_sql" {
     timeout_seconds    = 180
     environment_variables = {
       DB_USER             = var.cloudsql_user
-      DB_PASS             = random_password.cloudsql_password.result
+      DB_PASS             = nonsensitive(random_password.cloudsql_password.result)
       DB_NAME             = var.cloudsql_db_name
       DB_HOST             = google_sql_database_instance.main.public_ip_address
       GCP_PROJECT         = var.gcp_project_id
@@ -175,7 +175,7 @@ resource "google_cloudfunctions2_function" "user_data_to_sql" {
     timeout_seconds    = 180
     environment_variables = {
       DB_USER     = var.cloudsql_user
-      DB_PASS     = random_password.cloudsql_password.result
+      DB_PASS     = nonsensitive(random_password.cloudsql_password.result)
       DB_NAME     = var.cloudsql_db_name
       DB_HOST     = google_sql_database_instance.main.public_ip_address
       GCP_PROJECT = var.gcp_project_id
@@ -235,7 +235,7 @@ resource "google_cloudfunctions2_function" "kids_data_to_sql" {
     timeout_seconds    = 180
     environment_variables = {
       DB_USER     = var.cloudsql_user
-      DB_PASS     = random_password.cloudsql_password.result
+      DB_PASS     = nonsensitive(random_password.cloudsql_password.result)
       DB_NAME     = var.cloudsql_db_name
       DB_HOST     = google_sql_database_instance.main.public_ip_address
       GCP_PROJECT = var.gcp_project_id

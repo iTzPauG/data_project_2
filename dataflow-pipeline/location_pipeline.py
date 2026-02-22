@@ -95,7 +95,10 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 
 class CheckZoneMatchFn(beam.DoFn):
-    """Check if a location matches any restricted zone.
+    """Check if a location matches any restricted zone using CloudSQL.
+
+    Queries the zones table in CloudSQL (PostgreSQL) with a bounding-box
+    pre-filter followed by an exact haversine distance check.
 
     Outputs to two tagged outputs:
     - 'match': zone violation notifications
@@ -103,20 +106,28 @@ class CheckZoneMatchFn(beam.DoFn):
     """
 
     LAT_OFFSET = 0.00045
-    DEFAULT_RADIUS = 50
 
-    def __init__(self, firestore_project: str, firestore_database: str,
-                 zones_collection: str):
-        self.firestore_project = firestore_project
-        self.firestore_database = firestore_database
-        self.zones_collection = zones_collection
-        self._db = None
+    def __init__(self, db_host: str, db_user: str, db_pass: str,
+                 db_name: str, zones_table: str):
+        self.db_host = db_host
+        self.db_user = db_user
+        self.db_pass = db_pass
+        self.db_name = db_name
+        self.zones_table = zones_table
+        self._conn = None
+
+    def _ensure_connection(self):
+        import psycopg2
+        if self._conn is None or self._conn.closed:
+            self._conn = psycopg2.connect(
+                host=self.db_host,
+                user=self.db_user,
+                password=self.db_pass,
+                dbname=self.db_name
+            )
 
     def setup(self):
-        from google.cloud import firestore
-        self._db = firestore.Client(
-            project=self.firestore_project, database=self.firestore_database
-        )
+        self._ensure_connection()
 
     def _query_nearby_zones(self, latitude: float, longitude: float) -> Optional[Dict]:
         min_lat = latitude - self.LAT_OFFSET
@@ -125,22 +136,39 @@ class CheckZoneMatchFn(beam.DoFn):
         min_lon = longitude - lon_offset
         max_lon = longitude + lon_offset
 
-        query = (
-            self._db.collection(self.zones_collection)
-            .where('latitude', '>=', min_lat)
-            .where('latitude', '<=', max_lat)
-        )
+        try:
+            self._ensure_connection()
+            cursor = self._conn.cursor()
+            cursor.execute(
+                f"""
+                SELECT tag_id, latitude, longitude, radius
+                FROM {self.zones_table}
+                WHERE latitude  BETWEEN %s AND %s
+                  AND longitude BETWEEN %s AND %s
+                """,
+                (min_lat, max_lat, min_lon, max_lon)
+            )
+            rows = cursor.fetchall()
+            cursor.close()
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Error querying zones from CloudSQL: {e}")
+            try:
+                self._conn.rollback()
+            except Exception:
+                self._conn = None
+            return None
 
-        for doc in query.stream():
-            zone = doc.to_dict()
-            zone['id'] = doc.id
-            zone_lon = zone.get('longitude')
-            if zone_lon is None or zone_lon < min_lon or zone_lon > max_lon:
+        for zone_tag_id, zone_lat, zone_lon, zone_radius in rows:
+            if zone_radius is None:
                 continue
-            zone_radius = zone.get('radius', self.DEFAULT_RADIUS)
-            distance = haversine_distance(latitude, longitude, zone['latitude'], zone_lon)
+            distance = haversine_distance(latitude, longitude, zone_lat, zone_lon)
             if distance <= zone_radius:
-                return zone
+                return {
+                    'zone_id': zone_tag_id,
+                    'latitude': zone_lat,
+                    'longitude': zone_lon,
+                    'radius': zone_radius,
+                }
         return None
 
     def process(self, location: dict):
@@ -155,10 +183,11 @@ class CheckZoneMatchFn(beam.DoFn):
                 notification = json.dumps({
                     'status': 'zone_violation',
                     'tag_id': location['tag_id'],
+                    'zone_id': violated_zone['zone_id'],
                     'latitude': location['latitude'],
                     'longitude': location['longitude'],
                     'timestamp': location['timestamp'],
-                    'zone_radius': violated_zone.get('radius', 50),
+                    'zone_radius': violated_zone['radius'],
                     'distance_meters': round(distance, 2),
                 })
                 yield beam.pvalue.TaggedOutput('match', notification)
@@ -176,8 +205,9 @@ class CheckZoneMatchFn(beam.DoFn):
             logging.getLogger(__name__).error(f"Error checking zone match: {e}")
 
     def teardown(self):
-        if self._db:
-            logging.getLogger(__name__).info("Firestore connection closed")
+        if self._conn and not self._conn.closed:
+            self._conn.close()
+            logging.getLogger(__name__).info("CloudSQL connection closed")
 
 
 class SaveLastLocationToFirestoreFn(beam.DoFn):
@@ -225,7 +255,7 @@ def run(argv=None):
     parser.add_argument('--project_id', required=True, help='GCP project ID')
     parser.add_argument('--firestore_database', required=True)
     parser.add_argument('--firestore_collection', required=True)
-    parser.add_argument('--zones_sql', default='zones', help='Firestore collection name for zones')
+    parser.add_argument('--zones_sql', default='zones', help='CloudSQL table name for zones')
     parser.add_argument('--bq_dataset', required=True, help='BigQuery dataset ID')
     parser.add_argument('--bq_table', required=True, help='BigQuery table name')
 
@@ -273,9 +303,11 @@ def run(argv=None):
         locations
         | 'Check Zone Match' >> beam.ParDo(
             CheckZoneMatchFn(
-                firestore_project=known_args.project_id,
-                firestore_database=known_args.firestore_database,
-                zones_collection=known_args.zones_sql
+                db_host=known_args.db_host,
+                db_user=known_args.db_user,
+                db_pass=known_args.db_pass,
+                db_name=known_args.db_name,
+                zones_table=known_args.zones_sql
             )
         ).with_outputs('match', 'no_match')
     )
@@ -284,14 +316,6 @@ def run(argv=None):
     (
         zone_results.match
         | 'Publish Match Notifications' >> WriteStringsToPubSub(
-            topic=known_args.output_notifications_topic
-        )
-    )
-
-    # Publish no-match results to notifications topic too
-    (
-        zone_results.no_match
-        | 'Publish No-Match Notifications' >> WriteStringsToPubSub(
             topic=known_args.output_notifications_topic
         )
     )

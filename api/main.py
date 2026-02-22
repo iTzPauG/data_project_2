@@ -202,8 +202,9 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Error guardando en base de datos")
 
     # B) Enviar a Pub/Sub (Para que Dataflow se entere)
+    zone_id = f"{db_zone.tag_id}-{db_zone.timestamp}"
     message_dict = {
-        "id": db_zone.id,
+        "id": zone_id,
         "tag_id": str(zone.tag_id),
         "latitude": zone.latitude,
         "longitude": zone.longitude,
@@ -218,7 +219,7 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         except Exception as e:
             print(f"Error PubSub Zone: {e}")
 
-    return {"status": "ok", "db_id": db_zone.id}
+    return {"status": "ok", "db_id": zone_id}
 
 # 3. LEER ZONAS (NUEVO - Esto es lo que busca tu Frontend)
 @app.get("/zones")
