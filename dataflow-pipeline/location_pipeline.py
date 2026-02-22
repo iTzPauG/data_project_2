@@ -129,7 +129,7 @@ class CheckZoneMatchFn(beam.DoFn):
     def setup(self):
         self._ensure_connection()
 
-    def _query_nearby_zones(self, latitude: float, longitude: float) -> Optional[Dict]:
+    def _query_nearby_zones(self, tag_id: str, latitude: float, longitude: float) -> Optional[Dict]:
         min_lat = latitude - self.LAT_OFFSET
         max_lat = latitude + self.LAT_OFFSET
         lon_offset = self.LAT_OFFSET / math.cos(math.radians(latitude))
@@ -143,10 +143,11 @@ class CheckZoneMatchFn(beam.DoFn):
                 f"""
                 SELECT tag_id, latitude, longitude, radius
                 FROM {self.zones_table}
-                WHERE latitude  BETWEEN %s AND %s
+                WHERE tag_id   = %s
+                  AND latitude  BETWEEN %s AND %s
                   AND longitude BETWEEN %s AND %s
                 """,
-                (min_lat, max_lat, min_lon, max_lon)
+                (tag_id, min_lat, max_lat, min_lon, max_lon)
             )
             rows = cursor.fetchall()
             cursor.close()
@@ -173,15 +174,15 @@ class CheckZoneMatchFn(beam.DoFn):
 
     def process(self, location: dict):
         try:
-            violated_zone = self._query_nearby_zones(location['latitude'], location['longitude'])
+            violated_zone = self._query_nearby_zones(location['tag_id'], location['latitude'], location['longitude'])
 
             if violated_zone:
                 distance = haversine_distance(
                     location['latitude'], location['longitude'],
                     violated_zone['latitude'], violated_zone['longitude']
                 )
-                notification = json.dumps({
-                    'status': 'zone_violation',
+                yield json.dumps({
+                    'message': 'user entered a zone',
                     'tag_id': location['tag_id'],
                     'zone_id': violated_zone['zone_id'],
                     'latitude': location['latitude'],
@@ -190,16 +191,6 @@ class CheckZoneMatchFn(beam.DoFn):
                     'zone_radius': violated_zone['radius'],
                     'distance_meters': round(distance, 2),
                 })
-                yield beam.pvalue.TaggedOutput('match', notification)
-            else:
-                notification = json.dumps({
-                    'status': 'no_match',
-                    'tag_id': location['tag_id'],
-                    'latitude': location['latitude'],
-                    'longitude': location['longitude'],
-                    'timestamp': location['timestamp'],
-                })
-                yield beam.pvalue.TaggedOutput('no_match', notification)
 
         except Exception as e:
             logging.getLogger(__name__).error(f"Error checking zone match: {e}")
@@ -298,8 +289,8 @@ def run(argv=None):
         )
     )
 
-    # 3. Branch B: Check zone match and publish notifications
-    zone_results = (
+    # 3. Branch B: Check zone match and publish violations only
+    (
         locations
         | 'Check Zone Match' >> beam.ParDo(
             CheckZoneMatchFn(
@@ -309,13 +300,8 @@ def run(argv=None):
                 db_name=known_args.db_name,
                 zones_table=known_args.zones_sql
             )
-        ).with_outputs('match', 'no_match')
-    )
-
-    # Publish zone violations to notifications topic
-    (
-        zone_results.match
-        | 'Publish Match Notifications' >> WriteStringsToPubSub(
+        )
+        | 'Publish Violation Notifications' >> WriteStringsToPubSub(
             topic=known_args.output_notifications_topic
         )
     )

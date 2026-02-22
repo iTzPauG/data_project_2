@@ -181,35 +181,18 @@ async def publish_location(data: LocationRequest):
 
     return {"status": "published"}
 
-# 2. CREAR ZONA (Admin) - AHORA GUARDA EN BD + PUBSUB
+# 2. CREAR ZONA (Admin) - Solo publica a Pub/Sub, la Cloud Function escribe en SQL
 @app.post("/zone")
-async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
-    
-    # A) Guardar en Base de Datos (Cloud SQL / SQLite)
-    try:
-        db_zone = ZoneDB(
-            tag_id=str(zone.tag_id),
-            latitude=zone.latitude,
-            longitude=zone.longitude,
-            radius=zone.radius,
-            timestamp=datetime.utcnow(),
-        )
-        db.add(db_zone)
-        db.commit()
-        db.refresh(db_zone) # Obtenemos el ID generado
-    except Exception as e:
-        print(f"Error BD: {e}")
-        raise HTTPException(status_code=500, detail="Error guardando en base de datos")
-
-    # B) Enviar a Pub/Sub (Para que Dataflow se entere)
-    zone_id = f"{db_zone.tag_id}-{db_zone.timestamp}"
+async def create_zone(zone: ZoneRequest):
+    timestamp = datetime.utcnow()
+    zone_id = f"{zone.tag_id}-{timestamp}"
     message_dict = {
         "id": zone_id,
         "tag_id": str(zone.tag_id),
         "latitude": zone.latitude,
         "longitude": zone.longitude,
         "radius": zone.radius,
-        "timestamp": str(db_zone.timestamp)
+        "timestamp": str(timestamp)
     }
 
     if GCP_PROJECT_ID:
@@ -218,8 +201,9 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
             get_publisher().publish(topic_path, json.dumps(message_dict).encode("utf-8"))
         except Exception as e:
             print(f"Error PubSub Zone: {e}")
+            raise HTTPException(status_code=500, detail="Error publishing zone to Pub/Sub")
 
-    return {"status": "ok", "db_id": zone_id}
+    return {"status": "ok", "zone_id": zone_id}
 
 # 3. LEER ZONAS (NUEVO - Esto es lo que busca tu Frontend)
 @app.get("/zones")
