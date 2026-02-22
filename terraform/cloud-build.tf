@@ -97,10 +97,11 @@ resource "google_cloudbuildv2_repository" "main" {
 
 # Cloud Build trigger for GitHub pushes to main branch
 resource "google_cloudbuild_trigger" "github_main" {
-  name        = "github-main-trigger"
-  description = "Trigger on push to main branch - deploys API, Dataflow, and Cloud Functions"
-  location    = var.gcp_region
-  project     = var.gcp_project_id
+  name            = "github-main-trigger"
+  description     = "Trigger on push to main branch - deploys API, Dataflow, and Cloud Functions"
+  location        = var.gcp_region
+  project         = var.gcp_project_id
+  service_account = "projects/${var.gcp_project_id}/serviceAccounts/${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
 
   repository_event_config {
     repository = google_cloudbuildv2_repository.main.id
@@ -125,7 +126,6 @@ resource "google_cloudbuild_trigger" "github_main" {
     _DB_HOST                  = google_sql_database_instance.main.public_ip_address
     _DB_NAME                  = var.cloudsql_db_name
     _DB_USER                  = var.cloudsql_user
-    _DB_PASS                  = random_password.cloudsql_password.result
     _BQ_DATASET               = google_bigquery_dataset.bqdataset.dataset_id
     _BQ_TABLE                 = google_bigquery_table.table.table_id
     _CLOUDRUN_SERVICE_NAME    = "location-api"
