@@ -5,12 +5,13 @@ import os
 from datetime import datetime
 from typing import Optional, Union, List
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import pubsub_v1
+from google.cloud import bigquery # <-- NUEVO: Importamos BigQuery
 from pydantic import BaseModel, field_validator
 
-# --- NUEVO: IMPORTS DE BASE DE DATOS ---
+# --- IMPORTS DE BASE DE DATOS ---
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -42,9 +43,10 @@ PUBSUB_ZONE_TOPIC = os.environ.get("PUBSUB_ZONE_TOPIC", "zone-data")
 PUBSUB_USER_TOPIC = os.environ.get("PUBSUB_USER_TOPIC", "user-data")
 PUBSUB_KIDS_TOPIC = os.environ.get("PUBSUB_KIDS_TOPIC", "kids-data")
 
+# Inicializamos el cliente de BigQuery
+bq_client = bigquery.Client(project=GCP_PROJECT_ID) if GCP_PROJECT_ID else None
+
 # --- CONFIGURACIÓN BASE DE DATOS ---
-# Usamos SQLite en local para que no te falle si no tienes Cloud SQL Proxy activo
-# En Cloud Run, esta variable vendrá configurada para PostgreSQL
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./local_zones.db")
 
 # Ajuste necesario para SQLite
@@ -82,7 +84,7 @@ def get_publisher():
         _publisher = pubsub_v1.PublisherClient()
     return _publisher
 
-# --- WEBSOCKETS (Se mantienen por si acaso, aunque uses Firestore) ---
+# --- WEBSOCKETS ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -118,7 +120,6 @@ class ZoneRequest(BaseModel):
     timestamp: Optional[str] = None
     node_id: Optional[str] = None
 
-# --- ENDPOINTS ---
     @field_validator("latitude")
     @classmethod
     def validate_latitude(cls, v):
@@ -157,9 +158,9 @@ class KidRequest(BaseModel):
     user_id: Union[str, int]
 
 
-# --- Endpoints ---
+# --- ENDPOINTS ---
 
-# 1. PUBLICAR UBICACIÓN (Sigue siendo vital para enviar datos a Dataflow)
+# 1. PUBLICAR UBICACIÓN
 @app.post("/location")
 async def publish_location(data: LocationRequest):
     message_dict = {
@@ -169,7 +170,6 @@ async def publish_location(data: LocationRequest):
         "timestamp": data.timestamp or datetime.now().isoformat(),
     }
 
-    # A) ENVIAR A PUB/SUB (Para Dataflow -> Firestore)
     if GCP_PROJECT_ID:
         try:
             topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_LOCATION_TOPIC)
@@ -177,16 +177,12 @@ async def publish_location(data: LocationRequest):
         except Exception as e:
             print(f"Error PubSub Location: {e}")
     
-    # B) WEBSOCKET (Opcional, ya que el frontend lee de Firestore)
     await manager.broadcast(message_dict)
-
     return {"status": "published"}
 
-# 2. CREAR ZONA (Admin) - AHORA GUARDA EN BD + PUBSUB
+# 2. CREAR ZONA (Admin)
 @app.post("/zone")
 async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
-    
-    # A) Guardar en Base de Datos (Cloud SQL / SQLite)
     try:
         db_zone = ZoneDB(
             tag_id=str(zone.tag_id),
@@ -197,14 +193,16 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         )
         db.add(db_zone)
         db.commit()
-        db.refresh(db_zone) # Obtenemos el ID generado
+        db.refresh(db_zone) 
     except Exception as e:
         print(f"Error BD: {e}")
         raise HTTPException(status_code=500, detail="Error guardando en base de datos")
 
-    # B) Enviar a Pub/Sub (Para que Dataflow se entere)
+    # CORREGIDO: Evitamos usar db_zone.id porque la tabla usa tag_id y timestamp como llaves primarias
+    fake_id = f"{db_zone.tag_id}-{db_zone.timestamp.isoformat()}"
+
     message_dict = {
-        "id": db_zone.id,
+        "id": fake_id,
         "tag_id": str(zone.tag_id),
         "latitude": zone.latitude,
         "longitude": zone.longitude,
@@ -219,15 +217,15 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         except Exception as e:
             print(f"Error PubSub Zone: {e}")
 
-    return {"status": "ok", "db_id": db_zone.id}
+    return {"status": "ok", "db_id": fake_id}
 
-# 3. LEER ZONAS (NUEVO - Esto es lo que busca tu Frontend)
+# 3. LEER ZONAS 
 @app.get("/zones")
 def get_zones(db: Session = Depends(get_db)):
     zones = db.query(ZoneDB).all()
     return [
         {
-            "id": f"{z.tag_id}-{z.timestamp}", # Generamos un ID inventado para que React sea feliz
+            "id": f"{z.tag_id}-{z.timestamp}", 
             "latitude": z.latitude, 
             "longitude": z.longitude, 
             "radius": z.radius,
@@ -236,7 +234,7 @@ def get_zones(db: Session = Depends(get_db)):
         for z in zones
     ]
 
-# 4. WebSocket (Legacy)
+# 4. WEBSOCKET (Legacy)
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -246,7 +244,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-
+# 5. REGISTRAR USUARIO
 @app.post("/users")
 def register_user(data: UserRequest):
     if not GCP_PROJECT_ID:
@@ -270,7 +268,7 @@ def register_user(data: UserRequest):
 
     return {"status": "ok", "message_id": message_id}
 
-
+# 6. REGISTRAR NIÑO (TAG)
 @app.post("/tags")
 def register_kid(data: KidRequest):
     if not GCP_PROJECT_ID:
@@ -289,3 +287,50 @@ def register_kid(data: KidRequest):
     message_id = future.result()
 
     return {"status": "ok", "message_id": message_id}
+
+
+# --- NUEVO: ENDPOINT DE HISTORIAL (BIGQUERY) ---
+@app.get("/history/{tag_id}")
+def get_history(
+    tag_id: str,
+    start_time: str = Query(...), 
+    end_time: str = Query(...)
+):
+    if not bq_client:
+        raise HTTPException(status_code=500, detail="BigQuery no está configurado (Falta GCP_PROJECT_ID)")
+
+    try:
+        # Consulta parametrizada para evitar inyecciones SQL
+        query = """
+            SELECT latitude, longitude, timestamp
+            FROM `data-project-2-kids.dataset_kids.my_table`
+            WHERE tag_id = @tag_id
+              AND timestamp >= @start_time
+              AND timestamp <= @end_time
+            ORDER BY timestamp ASC
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("tag_id", "STRING", tag_id),
+                bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", start_time),
+                bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", end_time),
+            ]
+        )
+        
+        query_job = bq_client.query(query, job_config=job_config)
+        results = query_job.result()
+        
+        # Formateamos para DeckGL: [ [lon1, lat1], [lon2, lat2], ... ]
+        path_coordinates = []
+        for row in results:
+            path_coordinates.append([row.longitude, row.latitude])
+            
+        if not path_coordinates:
+            return {"path": [], "mensaje": "No hay datos en ese rango"}
+            
+        return {"path": path_coordinates}
+        
+    except Exception as e:
+        print(f"Error BigQuery: {e}")
+        raise HTTPException(status_code=500, detail="Error consultando el historial en BigQuery")
