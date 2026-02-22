@@ -101,7 +101,7 @@ resource "google_cloudbuild_trigger" "github_main" {
   description = "Trigger on push to main branch - deploys API, Dataflow, and Cloud Functions"
   location    = var.gcp_region
   project     = var.gcp_project_id
-
+  service_account = "projects/${var.gcp_project_id}/serviceAccounts/787549761080@cloudbuild.gserviceaccount.com"
   repository_event_config {
     repository = google_cloudbuildv2_repository.main.id
     push {
@@ -220,6 +220,8 @@ data "archive_file" "frontend_source" {
   type        = "zip"
   source_dir  = "${path.module}/../frontend"
   output_path = "${path.module}/../frontend-source.zip"
+
+  excludes    = ["node_modules", "dist"]
 }
 
 # Upload frontend source zip to GCS (new object on every code change via content hash in name)

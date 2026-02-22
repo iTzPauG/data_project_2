@@ -8,14 +8,11 @@ from typing import Optional, Union, List
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import pubsub_v1
-from google.cloud import bigquery # <-- NUEVO: Importamos BigQuery
+from google.cloud import bigquery
 from pydantic import BaseModel, field_validator
-
-# --- IMPORTS DE BASE DE DATOS ---
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-
 from fastapi import Response
 
 app = FastAPI(title="Location & Zone Ingestion API")
@@ -27,7 +24,7 @@ async def options_handler(path: str, response: Response):
     response.headers["Access-Control-Allow-Headers"] = "*"
     return {}
 
-# --- CORS (Permitir conexión desde React) ---
+# --- CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -48,15 +45,17 @@ bq_client = bigquery.Client(project=GCP_PROJECT_ID) if GCP_PROJECT_ID else None
 
 # --- CONFIGURACIÓN BASE DE DATOS ---
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./local_zones.db")
-
-# Ajuste necesario para SQLite
 connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- MODELO DB (La tabla que guardará las zonas) ---
+# =====================================================================
+# --- MODELOS DE BASE DE DATOS (SQLAlchemy) ---
+# TODAS las tablas deben definirse AQUÍ, antes de llamar a create_all()
+# =====================================================================
+
 class ZoneDB(Base):
     __tablename__ = "zones"
     tag_id = Column(String, primary_key=True)
@@ -65,7 +64,25 @@ class ZoneDB(Base):
     radius = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
 
-# Crea la tabla automáticamente si no existe
+class KidDB(Base):
+    __tablename__ = "kids"
+    tag_id = Column(String, primary_key=True)
+    nombre = Column(String)
+    user_id = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class UserDB(Base):
+    __tablename__ = "users"
+    user_id = Column(String, primary_key=True)
+    username = Column(String)
+    nombre = Column(String)
+    apellidos = Column(String)
+    correo = Column(String)
+    telefono = Column(String)
+    password = Column(String) 
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+# 🚨 AHORA SÍ: Crea TODAS las tablas definidas arriba si no existen
 Base.metadata.create_all(bind=engine)
 
 # Dependencia para obtener la DB
@@ -76,7 +93,10 @@ def get_db():
     finally:
         db.close()
 
-# --- CLIENTE PUBSUB ---
+# =====================================================================
+# --- CLIENTES Y MANAGERS ---
+# =====================================================================
+
 _publisher = None
 def get_publisher():
     global _publisher
@@ -84,7 +104,6 @@ def get_publisher():
         _publisher = pubsub_v1.PublisherClient()
     return _publisher
 
-# --- WEBSOCKETS ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -105,7 +124,10 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# --- MODELOS PYDANTIC (Validación) ---
+# =====================================================================
+# --- MODELOS DE VALIDACIÓN (Pydantic) ---
+# =====================================================================
+
 class LocationRequest(BaseModel):
     tag_id: Union[str, int]
     latitude: float
@@ -141,7 +163,6 @@ class ZoneRequest(BaseModel):
             raise ValueError("Radius must be positive")
         return v
 
-
 class UserRequest(BaseModel):
     user_id: Union[str, int]
     username: str
@@ -151,14 +172,15 @@ class UserRequest(BaseModel):
     correo: str
     telefono: str
 
-
 class KidRequest(BaseModel):
     tag_id: Union[str, int]
     nombre: str
     user_id: Union[str, int]
 
 
-# --- ENDPOINTS ---
+# =====================================================================
+# --- ENDPOINTS DE LA API ---
+# =====================================================================
 
 # 1. PUBLICAR UBICACIÓN
 @app.post("/location")
@@ -198,7 +220,6 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         print(f"Error BD: {e}")
         raise HTTPException(status_code=500, detail="Error guardando en base de datos")
 
-    # CORREGIDO: Evitamos usar db_zone.id porque la tabla usa tag_id y timestamp como llaves primarias
     fake_id = f"{db_zone.tag_id}-{db_zone.timestamp.isoformat()}"
 
     message_dict = {
@@ -261,7 +282,6 @@ def register_user(data: UserRequest):
         "timestamp": datetime.now().isoformat(),
     }
 
-    print(f"[API] User registration: {message}")
     topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_USER_TOPIC)
     future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
     message_id = future.result()
@@ -281,15 +301,13 @@ def register_kid(data: KidRequest):
         "timestamp": datetime.now().isoformat(),
     }
 
-    print(f"[API] tag registration: {message}")
     topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_KIDS_TOPIC)
     future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
     message_id = future.result()
 
     return {"status": "ok", "message_id": message_id}
 
-
-# --- NUEVO: ENDPOINT DE HISTORIAL (BIGQUERY) ---
+# 7. HISTORIAL (BIGQUERY)
 @app.get("/history/{tag_id}")
 def get_history(
     tag_id: str,
@@ -300,7 +318,6 @@ def get_history(
         raise HTTPException(status_code=500, detail="BigQuery no está configurado (Falta GCP_PROJECT_ID)")
 
     try:
-        # Consulta parametrizada para evitar inyecciones SQL
         query = """
             SELECT latitude, longitude, timestamp
             FROM `data-project-2-kids.dataset_kids.my_table`
@@ -321,7 +338,6 @@ def get_history(
         query_job = bq_client.query(query, job_config=job_config)
         results = query_job.result()
         
-        # Formateamos para DeckGL: [ [lon1, lat1], [lon2, lat2], ... ]
         path_coordinates = []
         for row in results:
             path_coordinates.append([row.longitude, row.latitude])
