@@ -78,3 +78,20 @@ def zone_data_to_sql(event, context):
         print(f"Inserted: tag_id={tag_id}, lat={latitude}, lon={longitude}, ts={timestamp}, radius={radius}")
     except Exception as e:
         print(f"Error inserting into Cloud SQL: {e}")
+
+    # Also write to Firestore so Dataflow can query zones in real-time
+    try:
+        from google.cloud import firestore
+        project = os.environ.get("GCP_PROJECT")
+        db_firestore = firestore.Client(project=project, database=os.environ.get("FIRESTORE_DATABASE", "location-db"))
+        doc_ref = db_firestore.collection("zones").document(tag_id)
+        doc_ref.set({
+            "tag_id": tag_id,
+            "latitude": latitude,
+            "longitude": longitude,
+            "radius": radius,
+            "timestamp": timestamp,
+        })
+        print(f"Written to Firestore zones: tag_id={tag_id}")
+    except Exception as e:
+        print(f"Error writing to Firestore: {e}")

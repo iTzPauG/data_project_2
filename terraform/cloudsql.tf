@@ -19,6 +19,12 @@ resource "google_project_iam_member" "zone_data_function_sql_client" {
   member  = "serviceAccount:${google_service_account.zone_data_function.email}"
 }
 
+resource "google_project_iam_member" "zone_data_function_firestore" {
+  project = var.gcp_project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.zone_data_function.email}"
+}
+
 # Cuenta de servicio dedicada para la Cloud Function de users
 resource "google_service_account" "user_data_function" {
   account_id   = "user-data-function-sa"
@@ -52,6 +58,7 @@ resource "local_file" "cloud_function_requirements" {
   content  = <<-EOT
 psycopg2-binary
 google-cloud-secret-manager
+google-cloud-firestore
 EOT
 }
 
@@ -106,11 +113,12 @@ resource "google_cloudfunctions2_function" "zone_data_to_sql" {
     available_memory   = "256M"
     timeout_seconds    = 180
     environment_variables = {
-      DB_USER     = var.cloudsql_user
-      DB_PASS     = random_password.cloudsql_password.result
-      DB_NAME     = var.cloudsql_db_name
-      DB_HOST     = google_sql_database_instance.main.public_ip_address
-      GCP_PROJECT = var.gcp_project_id
+      DB_USER             = var.cloudsql_user
+      DB_PASS             = random_password.cloudsql_password.result
+      DB_NAME             = var.cloudsql_db_name
+      DB_HOST             = google_sql_database_instance.main.public_ip_address
+      GCP_PROJECT         = var.gcp_project_id
+      FIRESTORE_DATABASE  = var.firestore_database_name
     }
     service_account_email = google_service_account.zone_data_function.email
   }

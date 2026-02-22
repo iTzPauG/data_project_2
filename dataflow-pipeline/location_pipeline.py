@@ -225,7 +225,7 @@ def run(argv=None):
     parser.add_argument('--project_id', required=True, help='GCP project ID')
     parser.add_argument('--firestore_database', required=True)
     parser.add_argument('--firestore_collection', required=True)
-    parser.add_argument('--zones_sql', help='SQL table for checking zones')
+    parser.add_argument('--zones_sql', default='zones', help='Firestore collection name for zones')
     parser.add_argument('--bq_dataset', required=True, help='BigQuery dataset ID')
     parser.add_argument('--bq_table', required=True, help='BigQuery table name')
 
