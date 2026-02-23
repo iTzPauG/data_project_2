@@ -85,11 +85,10 @@ resource "google_cloudbuildv2_repository" "main" {
 
 # Cloud Build trigger for GitHub pushes to main branch
 resource "google_cloudbuild_trigger" "github_main" {
-  name            = "github-main-trigger"
-  description     = "Trigger on push to main branch - deploys API, Dataflow, and Cloud Functions"
-  location        = var.gcp_region
-  project         = var.gcp_project_id
-  service_account = "projects/${var.gcp_project_id}/serviceAccounts/${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  name        = "github-main-trigger"
+  description = "Trigger on push to main branch - deploys API, Dataflow, and Cloud Functions"
+  location    = var.gcp_region
+  project     = var.gcp_project_id
 
   repository_event_config {
     repository = google_cloudbuildv2_repository.main.id
