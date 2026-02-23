@@ -21,3 +21,5 @@ psycopg2-binary>=2.9.0
 pydantic>=2.0.0             # Para validar que los JSON traen lat/long correctas
 python-dotenv>=1.0.0        # Para leer el archivo .env en local
 requests                    # Para que tu script 'random_movement.py' funcione
+
+react-hot-toast

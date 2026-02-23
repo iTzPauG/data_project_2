@@ -5,10 +5,14 @@ import { ScatterplotLayer, PathLayer } from '@deck.gl/layers';
 import axios from 'axios';
 
 // --- IMPORTAR FIREBASE ---
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase";
+import { doc, collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "./firebase"; 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
+// --- IMPORTAR NOTIFICACIONES ---
+import toast, { Toaster } from 'react-hot-toast';
+
+// --- 1. CONFIGURACIÓN ---
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const API_URL = import.meta.env.VITE_API_URL;
 const COLLECTION_NAME = "locations";
@@ -37,10 +41,11 @@ export default function App() {
 
   // --- ESTADOS DEL MAPA Y DATOS ---
   const [mapReady, setMapReady] = useState(false);
-  const [activeView, setActiveView] = useState('live');
-
-  const [kids, setKids] = useState([]);
-  const [selectedKidTag, setSelectedKidTag] = useState(null);
+  // activeView puede ser: 'live', 'history' o 'notifications'
+  const [activeView, setActiveView] = useState('live'); 
+  
+  const [kids, setKids] = useState([]); 
+  const [selectedKidTag, setSelectedKidTag] = useState(null); 
 
   const [ubicacionUsuario, setUbicacionUsuario] = useState(null);
   const [zonasSQL, setZonasSQL] = useState([]);
@@ -54,6 +59,9 @@ export default function App() {
   const [historyRoute, setHistoryRoute] = useState(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // NUEVO: Estado para almacenar la lista completa de notificaciones
+  const [notificationsList, setNotificationsList] = useState([]);
+
   // Estados Modales
   const [showKidModal, setShowKidModal] = useState(false);
   const [kidName, setKidName] = useState("");
@@ -63,12 +71,12 @@ export default function App() {
   const [miniMapViewState, setMiniMapViewState] = useState(INITIAL_VIEW_STATE);
   const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" });
 
+  // --- 3. EFECTOS ---
   useEffect(() => {
     const timer = setTimeout(() => setMapReady(true), 150);
     return () => clearTimeout(timer);
   }, []);
 
-  // Cargar niños de la DB al loguearse y auto-seleccionar el primero
   useEffect(() => {
     if (!loggedUser) return;
 
@@ -76,8 +84,7 @@ export default function App() {
       try {
         const res = await axios.get(`${API_URL}/kids/${loggedUser.user_id}`);
         setKids(res.data);
-
-        // Autoseleccionar el primer niño
+        
         if (res.data.length > 0 && !selectedKidTag) {
           setSelectedKidTag(res.data[0].tag_id);
         }
@@ -87,9 +94,8 @@ export default function App() {
     };
 
     fetchKids();
-  }, [loggedUser]); // Quitamos dependencias extra para evitar loops
+  }, [loggedUser]); 
 
-  // Cargar zonas de la DB al loguearse
   useEffect(() => {
     if (!loggedUser) return;
     const fetchZones = async () => {
@@ -103,14 +109,13 @@ export default function App() {
     fetchZones();
   }, [loggedUser]);
 
-  // Al cambiar de niño, resetear el centrado para la vista en vivo
   useEffect(() => {
     setHaCentradoInicial(false);
     setUbicacionUsuario(null);
   }, [selectedKidTag]);
 
-  // Listener de Firebase para ubicación en vivo
-  useEffect(() => {
+  // Listener Firebase (Ubicación en vivo)
+  useEffect(() => {    
     if (!db || !selectedKidTag || activeView !== 'live' || !loggedUser) return;
 
     const unsubscribe = onSnapshot(
@@ -135,34 +140,81 @@ export default function App() {
     return () => unsubscribe();
   }, [selectedKidTag, haCentradoInicial, activeView, loggedUser]);
 
+  // Listener Firebase (Notificaciones: Popup + Historial)
+  useEffect(() => {
+    if (!db || !loggedUser) return;
+
+    const q = query(
+      collection(db, "notifications"),
+      where("user_id", "==", String(loggedUser.user_id))
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      let newAlerts = [];
+      
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const alerta = change.doc.data();
+          alerta.id = change.doc.id; // Guardamos el ID del documento
+          newAlerts.push(alerta);
+          
+          const ahora = Date.now();
+          const tiempoAlerta = alerta.timestamp; 
+          
+          // Popup solo para notificaciones recientes (últimos 10 seg)
+          if (ahora - tiempoAlerta < 10000) { 
+            toast.error(
+              `¡Alerta! ${alerta.kid_name} ha infringido la zona: ${alerta.zone_name}`,
+              {
+                duration: 6000, 
+                position: 'top-right',
+                style: {
+                  background: '#333',
+                  color: '#fff',
+                  border: '1px solid #dc2626'
+                },
+              }
+            );
+          }
+        }
+      });
+
+      // Añadimos las nuevas alertas a la lista completa y ordenamos por fecha (más recientes primero)
+      if (newAlerts.length > 0) {
+        setNotificationsList(prev => {
+          const updatedList = [...prev, ...newAlerts];
+          return updatedList.sort((a, b) => b.timestamp - a.timestamp);
+        });
+      }
+      
+    }, (error) => console.error("Error Firebase (Notificaciones):", error));
+
+    return () => unsubscribe();
+  }, [loggedUser]);
+
+
   // --- 4. MANEJADORES DE DATOS ---
 
-  // NUEVO: Función envuelta en useCallback para poder llamarla desde el useEffect
   const handleSearchHistory = useCallback(async () => {
     if (!selectedKidTag) return;
     setIsLoadingHistory(true);
-
-    // CORRECCIÓN FINAL: Volvemos a usar toISOString()
-    // Esto coge la hora de España y la pasa a UTC para que coincida
-    // exactamente con el reloj de tu servidor de Google Cloud Run.
-    const startIso = new Date(`${historyDate}T${historyStartTime}:00`).toISOString();
-    const endIso = new Date(`${historyDate}T${historyEndTime}:00`).toISOString();
-
+    
+    const startIso = `${historyDate}T${historyStartTime}:00.000Z`;
+    const endIso = `${historyDate}T${historyEndTime}:00.000Z`;
+    
     try {
       const response = await axios.get(`${API_URL}/history/${selectedKidTag}`, {
         params: { start_time: startIso, end_time: endIso }
       });
-
-      // DeckGL necesita un mínimo de 2 puntos para poder trazar una línea.
+      
       if (response.data.path && response.data.path.length > 1) {
         setHistoryRoute({ path: response.data.path });
         setViewState(prev => ({ ...prev, longitude: response.data.path[0][0], latitude: response.data.path[0][1], zoom: 15, pitch: 45, transitionDuration: 1500 }));
       } else if (response.data.path && response.data.path.length === 1) {
-        // Si solo hay 1 punto en ese rango de tiempo, avisamos (no se puede hacer una línea con 1 punto)
         alert("Solo hay 1 punto de ubicación en este rango de tiempo. Se necesitan al menos 2 para dibujar una ruta.");
         setHistoryRoute(null);
       } else {
-        setHistoryRoute(null); // No hay datos, limpiamos la ruta
+        setHistoryRoute(null);
       }
     } catch (error) {
       console.error("Error consultando historial:", error);
@@ -171,13 +223,11 @@ export default function App() {
     }
   }, [selectedKidTag, historyDate, historyStartTime, historyEndTime]);
 
-  // NUEVO: Efecto para recargar el historial automáticamente al cambiar de niño o de vista
   useEffect(() => {
     if (activeView === 'history' && selectedKidTag) {
       handleSearchHistory();
     }
   }, [selectedKidTag, activeView, handleSearchHistory]);
-
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -244,8 +294,8 @@ export default function App() {
   };
 
   const handleSaveZone = async () => {
-    if (nuevaZona.latitude == null || !nuevaZona.tag_id) {
-      alert("Por favor, selecciona un punto en el mapa y asigna un niño.");
+    if (nuevaZona.latitude == null || !nuevaZona.tag_id || !nuevaZona.zone_name.trim()) {
+      alert("Por favor, selecciona un punto, asigna un niño y dale un nombre a la zona.");
       return;
     }
     setIsSavingZone(true);
@@ -256,9 +306,9 @@ export default function App() {
         longitude: nuevaZona.longitude,
         radius: nuevaZona.radius,
         zone_type: nuevaZona.zone_type,
-        zone_name: nuevaZona.zone_name,
+        zone_data: nuevaZona.zone_name, 
       });
-      setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: TARGET_USER_ID }]);
+      setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: loggedUser.user_id }]);
       setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" });
       setShowZoneModal(false);
     } catch (error) {
@@ -272,22 +322,28 @@ export default function App() {
   const handleZoomIn = () => setViewState(prev => ({ ...prev, zoom: prev.zoom + 1, transitionDuration: 300 }));
   const handleZoomOut = () => setViewState(prev => ({ ...prev, zoom: prev.zoom - 1, transitionDuration: 300 }));
 
+  // Formatear timestamp a fecha legible
+  const formatTime = (timestamp) => {
+    const d = new Date(timestamp);
+    return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
   // --- 5. CAPAS ---
   const zonasFiltradas = zonasSQL.filter(z => String(z.tag_id) === String(selectedKidTag));
 
   const getZoneColor = (zoneType) => {
     switch(zoneType) {
-      case 'emergencia': return [255, 0, 0, 80]; // rojo
-      case 'zona_segura': return [0, 255, 0, 80]; // verde
-      default: return [255, 165, 0, 80]; // naranja para aviso
+      case 'emergencia': return [239, 68, 68, 80];
+      case 'zona_segura': return [34, 197, 94, 80];
+      default: return [245, 158, 11, 80];
     }
   };
 
   const getZoneLineColor = (zoneType) => {
     switch(zoneType) {
-      case 'emergencia': return [255, 0, 0, 255];
-      case 'zona_segura': return [0, 255, 0, 255];
-      default: return [255, 165, 0, 255];
+      case 'emergencia': return [239, 68, 68, 255];
+      case 'zona_segura': return [34, 197, 94, 255];
+      default: return [245, 158, 11, 255];
     }
   };
 
@@ -376,7 +432,8 @@ export default function App() {
   // PANTALLA PRINCIPAL
   // ==========================================
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", backgroundColor: '#111921', color: '#f1f5f9', height: '100vh', width: '100vw', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={appContainerStyle}>
+      <Toaster />
 
       {/* MODAL: AÑADIR NIÑO */}
       {showKidModal && (
@@ -403,8 +460,7 @@ export default function App() {
               Haz clic en el mapa para seleccionar el centro de la zona.
             </p>
 
-            {/* MAPA del modal */}
-            <div style={{ position: 'relative', height: '380px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #1e293b' }}>
+            <div style={{ position: 'relative', height: '350px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #495057', marginBottom: '20px' }}>
               <DeckGL
                 key="zone-modal-map"
                 viewState={miniMapViewState}
@@ -419,8 +475,8 @@ export default function App() {
                     getPosition: d => [d.longitude, d.latitude],
                     getRadius: d => d.radius,
                     radiusUnits: 'meters',
-                    getFillColor: [255, 80, 80, 60],
-                    getLineColor: [255, 80, 80, 220],
+                    getFillColor: getZoneColor(nuevaZona.zone_type),
+                    getLineColor: getZoneLineColor(nuevaZona.zone_type),
                     stroked: true,
                     filled: true,
                     getLineWidth: 2,
@@ -432,7 +488,7 @@ export default function App() {
                     getRadius: 6,
                     radiusUnits: 'pixels',
                     getFillColor: [255, 255, 255, 255],
-                    getLineColor: [255, 80, 80, 255],
+                    getLineColor: getZoneLineColor(nuevaZona.zone_type),
                     stroked: true,
                     getLineWidth: 2,
                   }),
@@ -442,13 +498,7 @@ export default function App() {
               </DeckGL>
 
               {nuevaZona.latitude == null && (
-                <div style={{
-                  position: 'absolute', top: '50%', left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  backgroundColor: 'rgba(0,0,0,0.6)', color: 'white',
-                  padding: '10px 18px', borderRadius: '8px', fontSize: '14px',
-                  pointerEvents: 'none'
-                }}>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 18px', borderRadius: '8px', fontSize: '14px', pointerEvents: 'none' }}>
                   👆 Haz clic para colocar la zona
                 </div>
               )}
