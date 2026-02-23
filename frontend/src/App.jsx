@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { Map } from 'react-map-gl';
 import { ScatterplotLayer, PathLayer } from '@deck.gl/layers'; 
@@ -79,7 +79,7 @@ export default function App() {
         const res = await axios.get(`${API_URL}/kids/${loggedUser.user_id}`);
         setKids(res.data);
         
-        // CORRECCIÓN: Autoseleccionar el primer niño si no hay ninguno seleccionado
+        // Autoseleccionar el primer niño
         if (res.data.length > 0 && !selectedKidTag) {
           setSelectedKidTag(res.data[0].tag_id);
         }
@@ -89,7 +89,7 @@ export default function App() {
     };
     
     fetchKids();
-  }, [loggedUser, selectedKidTag]);
+  }, [loggedUser]); // Quitamos dependencias extra para evitar loops
 
   // Cargar zonas de la DB al loguearse
   useEffect(() => {
@@ -105,7 +105,7 @@ export default function App() {
     fetchZones();
   }, [loggedUser]);
 
-  // Al cambiar de niño, resetear el centrado
+  // Al cambiar de niño, resetear el centrado para la vista en vivo
   useEffect(() => {
     setHaCentradoInicial(false);
     setUbicacionUsuario(null);
@@ -129,8 +129,6 @@ export default function App() {
               setHaCentradoInicial(true); 
             }
           }
-        } else {
-          console.warn(`No hay datos en Firestore para tag_id: ${selectedKidTag}`);
         }
       },
       (error) => console.error("Error Firebase:", error)
@@ -139,7 +137,49 @@ export default function App() {
     return () => unsubscribe();
   }, [selectedKidTag, haCentradoInicial, activeView, loggedUser]);
 
-  // --- 4. MANEJADORES ---
+  // --- 4. MANEJADORES DE DATOS ---
+
+  // NUEVO: Función envuelta en useCallback para poder llamarla desde el useEffect
+  const handleSearchHistory = useCallback(async () => {
+    if (!selectedKidTag) return;
+    setIsLoadingHistory(true);
+    
+    // CORRECCIÓN FINAL: Volvemos a usar toISOString()
+    // Esto coge la hora de España y la pasa a UTC para que coincida 
+    // exactamente con el reloj de tu servidor de Google Cloud Run.
+    const startIso = new Date(`${historyDate}T${historyStartTime}:00`).toISOString();
+    const endIso = new Date(`${historyDate}T${historyEndTime}:00`).toISOString();
+    
+    try {
+      const response = await axios.get(`${API_URL}/history/${selectedKidTag}`, {
+        params: { start_time: startIso, end_time: endIso }
+      });
+      
+      // DeckGL necesita un mínimo de 2 puntos para poder trazar una línea.
+      if (response.data.path && response.data.path.length > 1) {
+        setHistoryRoute({ path: response.data.path });
+        setViewState(prev => ({ ...prev, longitude: response.data.path[0][0], latitude: response.data.path[0][1], zoom: 15, pitch: 45, transitionDuration: 1500 }));
+      } else if (response.data.path && response.data.path.length === 1) {
+        // Si solo hay 1 punto en ese rango de tiempo, avisamos (no se puede hacer una línea con 1 punto)
+        alert("Solo hay 1 punto de ubicación en este rango de tiempo. Se necesitan al menos 2 para dibujar una ruta.");
+        setHistoryRoute(null);
+      } else {
+        setHistoryRoute(null); // No hay datos, limpiamos la ruta
+      }
+    } catch (error) {
+      console.error("Error consultando historial:", error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [selectedKidTag, historyDate, historyStartTime, historyEndTime]);
+
+  // NUEVO: Efecto para recargar el historial automáticamente al cambiar de niño o de vista
+  useEffect(() => {
+    if (activeView === 'history' && selectedKidTag) {
+      handleSearchHistory();
+    }
+  }, [selectedKidTag, activeView, handleSearchHistory]);
+
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -147,14 +187,12 @@ export default function App() {
     setIsAuthenticating(true);
     try {
       if (isLoginMode) {
-        // --- LOGIN ---
         const res = await axios.post(`${API_URL}/login`, {
           correo: loginEmail,
           password: loginPassword
         });
         if (res.data.status === "ok") setLoggedUser(res.data);
       } else {
-        // --- REGISTRO ---
         const newUserId = Date.now().toString(); 
         const res = await axios.post(`${API_URL}/users`, {
           user_id: newUserId,
@@ -167,10 +205,9 @@ export default function App() {
         });
         
         if (res.data.status === "ok") {
-          // CORRECCIÓN: Avisar de éxito y cambiar a pantalla de login
           alert("¡Cuenta creada con éxito! Por favor, inicia sesión para continuar.");
           setIsLoginMode(true);
-          setLoginPassword(""); // Limpiamos password por seguridad
+          setLoginPassword(""); 
         }
       }
     } catch (error) {
@@ -193,7 +230,6 @@ export default function App() {
       setShowKidModal(false);
       setKidName(""); 
       setDeviceTag("");
-      // Si es el primer niño que añadimos, lo seleccionamos
       if (kids.length === 0) {
           setSelectedKidTag(deviceTag);
       }
@@ -235,30 +271,6 @@ export default function App() {
 
   const handleZoomIn = () => setViewState(prev => ({ ...prev, zoom: prev.zoom + 1, transitionDuration: 300 }));
   const handleZoomOut = () => setViewState(prev => ({ ...prev, zoom: prev.zoom - 1, transitionDuration: 300 }));
-
-  const handleSearchHistory = async () => {
-    if (!selectedKidTag) return alert("Selecciona un niño.");
-    setIsLoadingHistory(true);
-    const startIso = new Date(`${historyDate}T${historyStartTime}:00`).toISOString();
-    const endIso = new Date(`${historyDate}T${historyEndTime}:00`).toISOString();
-    try {
-      const response = await axios.get(`${API_URL}/history/${selectedKidTag}`, {
-        params: { start_time: startIso, end_time: endIso }
-      });
-      if (response.data.path?.length > 0) {
-        setHistoryRoute({ path: response.data.path });
-        setViewState({ longitude: response.data.path[0][0], latitude: response.data.path[0][1], zoom: 15, pitch: 45, bearing: 0, transitionDuration: 1500 });
-      } else {
-        alert("Sin movimientos.");
-        setHistoryRoute(null);
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Error consultando el historial");
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
 
   // --- 5. CAPAS ---
   const zonasFiltradas = zonasSQL.filter(z => String(z.tag_id) === String(selectedKidTag));
@@ -362,7 +374,7 @@ export default function App() {
               Haz clic en el mapa para seleccionar el centro de la zona.
             </p>
 
-            {/* MAPA del modal — aislado del mapa principal */}
+            {/* MAPA del modal */}
             <div style={{ position: 'relative', height: '380px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #495057' }}>
               <DeckGL
                 key="zone-modal-map"

@@ -47,7 +47,7 @@ class ZoneDB(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
 
 class KidDB(Base):
-    __tablename__ = "kids"
+    __tablename__ = "tags"
     tag_id = Column(String, primary_key=True)
     nombre = Column(String)
     user_id = Column(String)
@@ -343,9 +343,9 @@ def get_kids(user_id: str, db: Session = Depends(get_db)):
 @app.get("/history/{tag_id}")
 def get_history(
     tag_id: str,
-    # ¡AQUÍ ESTÁ LA MAGIA! Cambiamos 'str' por 'datetime'
-    start_time: datetime = Query(...),
-    end_time: datetime = Query(...),
+    # Volvemos a str para que Python no modifique la zona horaria
+    start_time: str = Query(...),
+    end_time: str = Query(...),
 ):
     if not bq_client:
         raise HTTPException(status_code=500, detail="BigQuery no está configurado")
@@ -354,16 +354,17 @@ def get_history(
             SELECT latitude, longitude, timestamp
             FROM `data-project-2-kids.dataset_kids.my_table`
             WHERE tag_id = @tag_id
-              AND timestamp >= @start_time
-              AND timestamp <= @end_time
+              /* Dejamos que BigQuery convierta el texto exacto a Timestamp */
+              AND timestamp >= CAST(@start_time AS TIMESTAMP)
+              AND timestamp <= CAST(@end_time AS TIMESTAMP)
             ORDER BY timestamp ASC
         """
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
                 bigquery.ScalarQueryParameter("tag_id", "STRING", tag_id),
-                # Ahora start_time y end_time son objetos datetime reales, ¡BigQuery será feliz!
-                bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", start_time),
-                bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", end_time),
+                # Pasamos los parámetros como STRING a BigQuery
+                bigquery.ScalarQueryParameter("start_time", "STRING", start_time),
+                bigquery.ScalarQueryParameter("end_time", "STRING", end_time),
             ]
         )
         results = bq_client.query(query, job_config=job_config).result()

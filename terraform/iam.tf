@@ -163,3 +163,38 @@ resource "google_project_iam_member" "cloudrun_api_cloudsql_client" {
 
   depends_on = [google_project_service.sqladmin]
 }
+# IAM Role: BigQuery Data Viewer (para que la API pueda LEER las tablas de BigQuery)
+resource "google_project_iam_member" "cloudrun_api_bq_data_viewer" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.dataViewer"
+  member  = "serviceAccount:cloud-run-api@${var.gcp_project_id}.iam.gserviceaccount.com"
+
+  depends_on = [google_project_service.bigquery]
+}
+
+# IAM Role: BigQuery Job User (para que la API pueda EJECUTAR la consulta SQL en BigQuery)
+resource "google_project_iam_member" "cloudrun_api_bq_job_user" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:cloud-run-api@${var.gcp_project_id}.iam.gserviceaccount.com"
+
+  depends_on = [google_project_service.bigquery]
+}
+# Le damos permiso de Cloud SQL a la cuenta por defecto de Cloud Run
+resource "google_project_iam_member" "compute_default_cloudsql" {
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+# Le damos permiso de leer BigQuery a la cuenta por defecto
+resource "google_project_iam_member" "compute_default_bq_viewer" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.dataViewer"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+# Le damos permiso de ejecutar consultas en BigQuery a la cuenta por defecto
+resource "google_project_iam_member" "compute_default_bq_user" {
+  project = var.gcp_project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
