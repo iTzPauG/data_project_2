@@ -19,6 +19,10 @@ from fastapi import Response
 
 app = FastAPI(title="Location & Zone Ingestion API")
 
+@app.on_event("startup")
+async def startup_event():
+    Base.metadata.create_all(bind=engine)
+
 @app.options("/{path:path}")
 async def options_handler(path: str, response: Response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -61,9 +65,6 @@ class ZoneDB(Base):
     longitude = Column(Float)
     radius = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
-
-# Crea la tabla automáticamente si no existe
-Base.metadata.create_all(bind=engine)
 
 # Dependencia para obtener la DB
 def get_db():
@@ -117,7 +118,6 @@ class ZoneRequest(BaseModel):
     timestamp: Optional[str] = None
     node_id: Optional[str] = None
 
-# --- ENDPOINTS ---
     @field_validator("latitude")
     @classmethod
     def validate_latitude(cls, v):
@@ -181,34 +181,18 @@ async def publish_location(data: LocationRequest):
 
     return {"status": "published"}
 
-# 2. CREAR ZONA (Admin) - AHORA GUARDA EN BD + PUBSUB
+# 2. CREAR ZONA (Admin) - Solo publica a Pub/Sub, la Cloud Function escribe en SQL
 @app.post("/zone")
-async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
-    
-    # A) Guardar en Base de Datos (Cloud SQL / SQLite)
-    try:
-        db_zone = ZoneDB(
-            tag_id=str(zone.tag_id),
-            latitude=zone.latitude,
-            longitude=zone.longitude,
-            radius=zone.radius,
-            timestamp=datetime.utcnow(),
-        )
-        db.add(db_zone)
-        db.commit()
-        db.refresh(db_zone) # Obtenemos el ID generado
-    except Exception as e:
-        print(f"Error BD: {e}")
-        raise HTTPException(status_code=500, detail="Error guardando en base de datos")
-
-    # B) Enviar a Pub/Sub (Para que Dataflow se entere)
+async def create_zone(zone: ZoneRequest):
+    timestamp = datetime.utcnow()
+    zone_id = f"{zone.tag_id}-{timestamp}"
     message_dict = {
-        "id": db_zone.id,
+        "id": zone_id,
         "tag_id": str(zone.tag_id),
         "latitude": zone.latitude,
         "longitude": zone.longitude,
         "radius": zone.radius,
-        "timestamp": str(db_zone.timestamp)
+        "timestamp": str(timestamp)
     }
 
     if GCP_PROJECT_ID:
@@ -217,8 +201,9 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
             get_publisher().publish(topic_path, json.dumps(message_dict).encode("utf-8"))
         except Exception as e:
             print(f"Error PubSub Zone: {e}")
+            raise HTTPException(status_code=500, detail="Error publishing zone to Pub/Sub")
 
-    return {"status": "ok", "db_id": db_zone.id}
+    return {"status": "ok", "zone_id": zone_id}
 
 # 3. LEER ZONAS (NUEVO - Esto es lo que busca tu Frontend)
 @app.get("/zones")
