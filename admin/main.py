@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import time as _time
 from collections import deque
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -72,6 +73,8 @@ NOTIFICATIONS_SUBSCRIPTION = os.environ.get("NOTIFICATIONS_SUBSCRIPTION", "")
 
 # Rolling buffer of the last 50 zone violations (populated by background task)
 violations_buffer: deque = deque(maxlen=50)
+
+_chart_cache: dict = {"data": None, "expires": 0.0}
 
 _firestore_client: Optional[gcp_firestore.Client] = None
 _bq_client: Optional[bigquery.Client] = None
@@ -157,13 +160,16 @@ def _collect_stats() -> dict:
             cur.execute("SELECT COUNT(*) FROM zones")
             zone_count = cur.fetchone()[0]
 
-            cur.execute("SELECT COUNT(DISTINCT user_id) FROM zones")
+            cur.execute("""
+                SELECT COUNT(DISTINCT t.user_id) FROM tags t
+                WHERE t.tag_id IN (SELECT DISTINCT tag_id FROM zones)
+            """)
             users_with_zones = cur.fetchone()[0]
 
             cur.execute("SELECT COUNT(*) FROM users")
             user_count = cur.fetchone()[0]
 
-            cur.execute("SELECT COUNT(*) FROM kids")
+            cur.execute("SELECT COUNT(*) FROM tags")
             kid_count = cur.fetchone()[0]
 
             cur.execute(
@@ -171,24 +177,31 @@ def _collect_stats() -> dict:
             )
             new_users_week = cur.fetchone()[0]
 
-            cur.execute(
-                "SELECT COUNT(*) FROM users "
-                "WHERE user_id NOT IN (SELECT DISTINCT user_id FROM zones)"
-            )
+            cur.execute("""
+                SELECT COUNT(*) FROM users
+                WHERE user_id NOT IN (
+                    SELECT DISTINCT t.user_id FROM tags t
+                    WHERE t.tag_id IN (SELECT DISTINCT tag_id FROM zones)
+                )
+            """)
             users_no_zones = cur.fetchone()[0]
 
             cur.execute("""
                 SELECT COUNT(*) FROM users u
-                WHERE EXISTS     (SELECT 1 FROM kids k WHERE k.user_id = u.user_id)
-                  AND NOT EXISTS (SELECT 1 FROM zones z WHERE z.user_id = u.user_id)
+                WHERE EXISTS     (SELECT 1 FROM tags t WHERE t.user_id = u.user_id)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM tags t
+                      WHERE t.user_id = u.user_id
+                        AND t.tag_id IN (SELECT tag_id FROM zones)
+                  )
             """)
             unprotected_users = cur.fetchone()[0]
 
             # Load zone geometry for Haversine cross-check
-            cur.execute("SELECT user_id, latitude, longitude, radius FROM zones")
+            cur.execute("SELECT tag_id, latitude, longitude, radius FROM zones")
             for row in cur.fetchall():
-                uid, lat, lon, radius = row
-                zones_by_user.setdefault(uid, []).append((lat, lon, radius))
+                tag_id, lat, lon, radius = row
+                zones_by_user.setdefault(tag_id, []).append((lat, lon, radius))
 
     except Exception as e:
         print(f"[ADMIN] Cloud SQL error: {e}")
@@ -218,7 +231,7 @@ def _collect_stats() -> dict:
                     pass
 
             # Kids outside all zones
-            uid = data.get("user_id") or doc.id
+            uid = data.get("tag_id") or doc.id
             lat = data.get("latitude") or data.get("lat")
             lon = data.get("longitude") or data.get("lon")
             if lat is not None and lon is not None:
@@ -263,6 +276,43 @@ def _collect_stats() -> dict:
     }
 
 
+def _get_chart_data() -> dict:
+    now = _time.monotonic()
+    if _chart_cache["data"] is not None and now < _chart_cache["expires"]:
+        return _chart_cache["data"]
+
+    messages_per_day: list = []
+    messages_per_month: list = []
+
+    if BQ_PROJECT and BQ_DATASET and BQ_TABLE:
+        try:
+            client = get_bq()
+            day_q = f"""
+                SELECT DATE(timestamp) AS day, COUNT(*) AS cnt
+                FROM `{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}`
+                WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+                GROUP BY day ORDER BY day
+            """
+            for row in client.query(day_q).result():
+                messages_per_day.append({"date": str(row.day), "count": row.cnt})
+
+            month_q = f"""
+                SELECT FORMAT_DATE('%Y-%m', DATE(timestamp)) AS month, COUNT(*) AS cnt
+                FROM `{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}`
+                WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)
+                GROUP BY month ORDER BY month
+            """
+            for row in client.query(month_q).result():
+                messages_per_month.append({"month": row.month, "count": row.cnt})
+        except Exception as e:
+            print(f"[ADMIN] BigQuery chart error: {e}")
+
+    result = {"messages_per_day": messages_per_day, "messages_per_month": messages_per_month}
+    _chart_cache["data"] = result
+    _chart_cache["expires"] = now + 300  # cache for 5 minutes
+    return result
+
+
 # ── Pub/Sub violations pull loop (background task) ────────────────────────────
 async def _pubsub_pull_loop() -> None:
     if not NOTIFICATIONS_SUBSCRIPTION or not BQ_PROJECT:
@@ -292,7 +342,7 @@ async def _pubsub_pull_loop() -> None:
                 try:
                     payload = json.loads(received_msg.message.data.decode("utf-8"))
                     violations_buffer.append({
-                        "user_id":         payload.get("user_id", ""),
+                        "tag_id":          payload.get("tag_id", ""),
                         "latitude":        payload.get("latitude", 0.0),
                         "longitude":       payload.get("longitude", 0.0),
                         "distance_meters": payload.get("distance_meters", 0.0),
@@ -441,6 +491,13 @@ def get_stats(request: Request):
     stats = _collect_stats()
     stats["violations"] = list(violations_buffer)
     return JSONResponse(stats)
+
+
+@app.get("/admin/api/chart")
+def chart_data(request: Request):
+    if not get_current_user(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return JSONResponse(_get_chart_data())
 
 
 @app.get("/health")

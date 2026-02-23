@@ -21,7 +21,10 @@ app = FastAPI(title="Location & Zone Ingestion API")
 
 @app.on_event("startup")
 async def startup_event():
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"[API] DB schema init skipped (tables may already exist): {e}")
 
 @app.options("/{path:path}")
 async def options_handler(path: str, response: Response):

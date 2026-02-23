@@ -440,7 +440,30 @@
       table { font-size: 0.72rem; }
       thead th, tbody td { padding: 0.65rem 0.75rem; }
     }
+    .chart-btn {
+      padding: .3rem .9rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: .8rem;
+      transition: background .15s, color .15s;
+    }
+    .chart-btn.active {
+      background: var(--cyan);
+      color: var(--bg);
+      border-color: var(--cyan);
+    }
+    .chart-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -687,6 +710,18 @@
     <div id="violations-empty" class="empty-state">No violations recorded</div>
   </div>
 
+  <!-- Messages Received Chart -->
+  <div class="section-header" style="margin-top:2rem;">
+    <h2 class="section-title">Messages Received</h2>
+    <div style="display:flex;gap:.5rem;">
+      <button id="btn-daily"   class="chart-btn active" onclick="switchView('daily')">Last 30 days</button>
+      <button id="btn-monthly" class="chart-btn"        onclick="switchView('monthly')">Last 12 months</button>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="messages-chart"></canvas>
+  </div>
+
 </main>
 
 <script>
@@ -740,7 +775,7 @@
         : (v.distance_meters || '—');
       tr.innerHTML =
         '<td>' + ts + '</td>' +
-        '<td class="mono">' + (v.user_id || '—') + '</td>' +
+        '<td class="mono">' + (v.tag_id || '—') + '</td>' +
         '<td>' + dist + ' m</td>';
 
       // Flash new rows that arrived since last render
@@ -839,6 +874,67 @@
     if (ws) ws.close();
     connect();
   }
+
+  // ── Messages chart ────────────────────────────────────────────────────────────
+  var _messagesChart = null;
+  var _chartView     = 'daily';
+  var _chartData     = null;
+
+  function switchView(view) {
+    _chartView = view;
+    document.getElementById('btn-daily').classList.toggle('active', view === 'daily');
+    document.getElementById('btn-monthly').classList.toggle('active', view === 'monthly');
+    if (_chartData) renderChart(_chartData);
+  }
+
+  function renderChart(data) {
+    _chartData = data;
+    var isMonthly = _chartView === 'monthly';
+    var series = isMonthly ? (data.messages_per_month || []) : (data.messages_per_day || []);
+    var labels = series.map(function(r) { return isMonthly ? r.month : r.date; });
+    var counts = series.map(function(r) { return r.count; });
+
+    if (!_messagesChart) {
+      var ctx = document.getElementById('messages-chart').getContext('2d');
+      _messagesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Messages',
+            data: counts,
+            backgroundColor: 'rgba(34,211,238,0.25)',
+            borderColor: '#22d3ee',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0, color: '#8294b8' }, grid: { color: 'rgba(100,130,200,0.1)' } },
+            x: { ticks: { color: '#8294b8' }, grid: { color: 'rgba(100,130,200,0.1)' } }
+          }
+        }
+      });
+    } else {
+      _messagesChart.data.labels = labels;
+      _messagesChart.data.datasets[0].data = counts;
+      _messagesChart.update('none');
+    }
+  }
+
+  function fetchChartData() {
+    fetch('/admin/api/chart')
+      .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(data) { renderChart(data); })
+      .catch(function(e) { console.warn('Chart fetch error', e); });
+  }
+
+  fetchChartData();                       // load on page open
+  setInterval(fetchChartData, 60000);     // refresh every 60 s
 
   // Start on page load
   connect();
