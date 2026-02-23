@@ -2,6 +2,7 @@
 
 import json
 import os
+import bcrypt
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, Union, List
@@ -316,12 +317,14 @@ def register_user(data: UserRequest, db: Session = Depends(get_db)):
     if not GCP_PROJECT_ID:
         raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
 
+    hashed_password = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()
+
     message = {
         "user_id": str(data.user_id),
         "username": data.username,
         "nombre": data.nombre,
         "apellidos": data.apellidos,
-        "password": data.password,
+        "password": hashed_password,
         "correo": data.correo,
         "telefono": data.telefono,
         "timestamp": datetime.now().isoformat(),
@@ -363,7 +366,7 @@ def register_kid(data: KidRequest, db: Session = Depends(get_db)):
 @app.post("/login")
 def login_user(data: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(UserDB).filter(UserDB.correo == data.correo).first()
-    if not user or user.password != data.password:
+    if not user or not bcrypt.checkpw(data.password.encode(), user.password.encode()):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
     return {
         "status": "ok",
