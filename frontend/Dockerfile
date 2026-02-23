@@ -12,7 +12,7 @@ ENV VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN
 ENV VITE_WS_URL=$VITE_WS_URL
 RUN npm run build
 
-# Stage 2 — serve
+# Stage 2 — serveserve
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
