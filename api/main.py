@@ -15,6 +15,10 @@ from sqlalchemy.orm import sessionmaker, Session
 
 app = FastAPI(title="Location & Zone Ingestion API")
 
+@app.on_event("startup")
+async def startup_event():
+    Base.metadata.create_all(bind=engine)
+
 @app.options("/{path:path}")
 async def options_handler(path: str, response: Response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -163,9 +167,11 @@ async def publish_location(data: LocationRequest):
     await manager.broadcast(message_dict)
     return {"status": "published"}
 
-
+# 2. CREAR ZONA (Admin) - AHORA GUARDA EN BD + PUBSUB
 @app.post("/zone")
 async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
+    
+    # A) Guardar en Base de Datos (Cloud SQL / SQLite)
     try:
         db_zone = ZoneDB(
             tag_id=str(zone.tag_id),
@@ -176,18 +182,19 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         )
         db.add(db_zone)
         db.commit()
-        db.refresh(db_zone)
+        db.refresh(db_zone) # Obtenemos el ID generado
     except Exception as e:
         print(f"Error BD: {e}")
         raise HTTPException(status_code=500, detail="Error guardando en base de datos")
 
+    # B) Enviar a Pub/Sub (Para que Dataflow se entere)
     message_dict = {
-        "id": db_zone.id,
+        "id": zone_id,
         "tag_id": str(zone.tag_id),
         "latitude": zone.latitude,
         "longitude": zone.longitude,
         "radius": zone.radius,
-        "timestamp": str(db_zone.timestamp)
+        "timestamp": str(timestamp)
     }
 
     if GCP_PROJECT_ID:
@@ -196,8 +203,9 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
             get_publisher().publish(topic_path, json.dumps(message_dict).encode("utf-8"))
         except Exception as e:
             print(f"Error PubSub Zone: {e}")
+            raise HTTPException(status_code=500, detail="Error publishing zone to Pub/Sub")
 
-    return {"status": "ok", "db_id": db_zone.id}
+    return {"status": "ok", "zone_id": zone_id}
 
 
 @app.get("/zones")

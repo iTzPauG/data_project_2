@@ -140,6 +140,7 @@ resource "google_dataflow_flex_template_job" "location_pipeline" {
     db_pass                    = random_password.cloudsql_password.result
     bq_dataset                 = google_bigquery_dataset.bqdataset.dataset_id
     bq_table                   = google_bigquery_table.table.table_id
+    zones_sql                  = "zones"
   }
 
   depends_on = [

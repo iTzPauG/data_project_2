@@ -75,3 +75,4 @@ def zone_data_to_sql(event, context):
         print(f"Inserted: tag_id={tag_id}, lat={latitude}, lon={longitude}, ts={timestamp}, radius={radius}")
     except Exception as e:
         print(f"Error inserting into Cloud SQL: {e}")
+
