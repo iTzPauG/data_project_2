@@ -141,7 +141,7 @@ class CheckZoneMatchFn(beam.DoFn):
             cursor = self._conn.cursor()
             cursor.execute(
                 f"""
-                SELECT tag_id, latitude, longitude, radius
+                SELECT tag_id, latitude, longitude, radius, zone_type, zone_name
                 FROM {self.zones_table}
                 WHERE tag_id   = %s
                   AND latitude  BETWEEN %s AND %s
@@ -159,7 +159,7 @@ class CheckZoneMatchFn(beam.DoFn):
                 self._conn = None
             return None
 
-        for zone_tag_id, zone_lat, zone_lon, zone_radius in rows:
+        for zone_tag_id, zone_lat, zone_lon, zone_radius, zone_type, zone_name in rows:
             if zone_radius is None:
                 continue
             distance = haversine_distance(latitude, longitude, zone_lat, zone_lon)
@@ -169,8 +169,46 @@ class CheckZoneMatchFn(beam.DoFn):
                     'latitude': zone_lat,
                     'longitude': zone_lon,
                     'radius': zone_radius,
+                    'zone_type': zone_type or 'aviso',
+                    'zone_name': zone_name or '',
                 }
         return None
+
+    def _get_user_phone(self, tag_id: str) -> Optional[str]:
+        """Get the phone number of the user associated with the tag_id."""
+        try:
+            self._ensure_connection()
+            cursor = self._conn.cursor()
+            cursor.execute(
+                """
+                SELECT u.telefono
+                FROM tags t
+                JOIN users u ON t.user_id = u.user_id
+                WHERE t.tag_id = %s
+                """,
+                (tag_id,)
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            return row[0] if row else None
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Error querying user phone: {e}")
+            try:
+                self._conn.rollback()
+            except Exception:
+                self._conn = None
+            return None
+
+    def _generate_message(self, zone_type: str, zone_name: str, tag_id: str, phone: Optional[str]) -> str:
+        """Generate message based on zone type."""
+        zone_display = zone_name if zone_name else 'zona'
+        if zone_type == 'emergencia':
+            phone_str = phone if phone else 'desconocido'
+            return f"⚠️ ¡¡ALERTA DE EMERGENCIA!! El dispositivo {tag_id} ha entrado en {zone_display} (ZONA DE EMERGENCIA). ¡ATENCION INMEDIATA REQUERIDA! Llamando a {phone_str}"
+        elif zone_type == 'zona_segura':
+            return f"✅ El dispositivo {tag_id} ha entrado en {zone_display} (zona segura)."
+        else:  # aviso
+            return f"⚠️ Alerta: El dispositivo {tag_id} ha entrado en {zone_display} (zona de aviso)."
 
     def process(self, location: dict):
         try:
@@ -181,8 +219,13 @@ class CheckZoneMatchFn(beam.DoFn):
                     location['latitude'], location['longitude'],
                     violated_zone['latitude'], violated_zone['longitude']
                 )
+                zone_type = violated_zone.get('zone_type', 'aviso')
+                zone_name = violated_zone.get('zone_name', '')
+                phone = self._get_user_phone(location['tag_id'])
+                message = self._generate_message(zone_type, zone_name, location['tag_id'], phone)
+                
                 yield json.dumps({
-                    'message': 'user entered a zone',
+                    'message': message,
                     'tag_id': location['tag_id'],
                     'zone_id': violated_zone['zone_id'],
                     'latitude': location['latitude'],
@@ -190,6 +233,8 @@ class CheckZoneMatchFn(beam.DoFn):
                     'timestamp': location['timestamp'],
                     'zone_radius': violated_zone['radius'],
                     'distance_meters': round(distance, 2),
+                    'zone_type': zone_type,
+                    'zone_name': zone_name,
                 })
 
         except Exception as e:
@@ -367,7 +412,7 @@ def run(argv=None):
         | 'Parse Notification JSON' >> beam.Map(lambda x: json.loads(x))
         | 'Write Notifications to BigQuery' >> WriteToBigQuery(
             table=f"{known_args.project_id}:{known_args.bq_dataset}.{known_args.bq_notifications_table}",
-            schema='message:STRING,tag_id:STRING,zone_id:STRING,latitude:FLOAT,longitude:FLOAT,timestamp:TIMESTAMP,zone_radius:FLOAT,distance_meters:FLOAT',
+            schema='message:STRING,tag_id:STRING,zone_id:STRING,latitude:FLOAT,longitude:FLOAT,timestamp:TIMESTAMP,zone_radius:FLOAT,distance_meters:FLOAT,zone_type:STRING,zone_name:STRING',
             write_disposition=BigQueryDisposition.WRITE_APPEND,
             create_disposition=BigQueryDisposition.CREATE_NEVER
         )

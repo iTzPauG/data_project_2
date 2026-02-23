@@ -59,6 +59,13 @@
       "isOptional": false
     },
     {
+      "name": "bq_notifications_table",
+      "label": "BigQuery notifications table name",
+      "helpText": "BigQuery table name for zone notifications.",
+      "isOptional": true,
+      "defaultValue": "notifications"
+    },
+    {
       "name": "db_host",
       "label": "Cloud SQL host",
       "helpText": "Public IP address of the Cloud SQL instance.",

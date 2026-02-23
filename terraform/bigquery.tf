@@ -36,7 +36,9 @@ resource "google_bigquery_table" "notifications" {
 	{"name": "longitude", "type": "FLOAT", "mode": "REQUIRED"},
 	{"name": "timestamp", "type": "TIMESTAMP", "mode": "REQUIRED"},
 	{"name": "zone_radius", "type": "FLOAT", "mode": "REQUIRED"},
-	{"name": "distance_meters", "type": "FLOAT", "mode": "REQUIRED"}
+	{"name": "distance_meters", "type": "FLOAT", "mode": "REQUIRED"},
+	{"name": "zone_type", "type": "STRING", "mode": "REQUIRED"},
+	{"name": "zone_name", "type": "STRING", "mode": "NULLABLE"}
 ]
 EOF
 }
