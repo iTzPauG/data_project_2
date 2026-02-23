@@ -26,7 +26,9 @@ def zone_data_to_sql(event, context):
                 latitude FLOAT,
                 longitude FLOAT,
                 timestamp TIMESTAMP,
-                radius FLOAT
+                radius FLOAT,
+                zone_type VARCHAR(50) DEFAULT 'aviso',
+                zone_name VARCHAR(255) DEFAULT ''
             );
         """)
         conn.commit()
@@ -45,6 +47,8 @@ def zone_data_to_sql(event, context):
             longitude = message_json.get('longitude')
             radius = message_json.get('radius')
             tag_id = message_json.get('tag_id')
+            zone_type = message_json.get('zone_type')
+            zone_name = message_json.get('zone_name')
             timestamp = message_json.get('timestamp')
             if timestamp is None:
                 from datetime import datetime
@@ -65,14 +69,14 @@ def zone_data_to_sql(event, context):
         )
         cursor = conn.cursor()
         insert_query = """
-                INSERT INTO zones (tag_id, latitude, longitude, timestamp, radius)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO zones (tag_id, latitude, longitude, timestamp, radius, zone_type, zone_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-        cursor.execute(insert_query, (tag_id, latitude, longitude, timestamp, radius))
+        cursor.execute(insert_query, (tag_id, latitude, longitude, timestamp, radius, zone_type, zone_name))
         conn.commit()
         cursor.close()
         conn.close()
-        print(f"Inserted: tag_id={tag_id}, lat={latitude}, lon={longitude}, ts={timestamp}, radius={radius}")
+        print(f"Inserted: tag_id={tag_id}, lat={latitude}, lon={longitude}, ts={timestamp}, radius={radius}, zone_type={zone_type}, zone_name={zone_name})")
     except Exception as e:
         print(f"Error inserting into Cloud SQL: {e}")
 

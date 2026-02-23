@@ -31,7 +31,7 @@ export default function App() {
 
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [miniMapViewState, setMiniMapViewState] = useState(INITIAL_VIEW_STATE);
-  const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "" });
+  const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" });
 
   useEffect(() => {
     const timer = setTimeout(() => setMapReady(true), 150);
@@ -104,9 +104,11 @@ export default function App() {
         latitude: nuevaZona.latitude,
         longitude: nuevaZona.longitude,
         radius: nuevaZona.radius,
+        zone_type: nuevaZona.zone_type,
+        zone_name: nuevaZona.zone_name,
       });
       setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: TARGET_USER_ID }]);
-      setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "" });
+      setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" });
       setShowZoneModal(false);
     } catch (error) {
       console.error("Error saving zone:", error);
@@ -116,12 +118,28 @@ export default function App() {
 
   const zonasFiltradas = zonasSQL.filter(z => String(z.tag_id) === String(selectedKidTag));
 
+  const getZoneColor = (zoneType) => {
+    switch(zoneType) {
+      case 'emergencia': return [255, 0, 0, 80]; // rojo
+      case 'zona_segura': return [0, 255, 0, 80]; // verde
+      default: return [255, 165, 0, 80]; // naranja para aviso
+    }
+  };
+
+  const getZoneLineColor = (zoneType) => {
+    switch(zoneType) {
+      case 'emergencia': return [255, 0, 0, 255];
+      case 'zona_segura': return [0, 255, 0, 255];
+      default: return [255, 165, 0, 255];
+    }
+  };
+
   const mainLayers = [
     new ScatterplotLayer({
       id: 'zonas-sql', data: zonasFiltradas, pickable: true, stroked: true, filled: true,
       getPosition: d => [parseFloat(d.longitude), parseFloat(d.latitude)],
       getRadius: d => parseFloat(d.radius), radiusUnits: 'meters', 
-      getFillColor: [255, 0, 0, 80], getLineColor: [255, 0, 0, 255], getLineWidth: 2
+      getFillColor: d => getZoneColor(d.zone_type), getLineColor: d => getZoneLineColor(d.zone_type), getLineWidth: 2
     }),
     ubicacionUsuario && new ScatterplotLayer({
       id: 'usuario-vivo', data: [ubicacionUsuario], pickable: true, stroked: true, filled: true,
@@ -209,6 +227,20 @@ export default function App() {
                 </>
               )}
             </select>
+
+            <select style={inputStyle} value={nuevaZona.zone_type} onChange={e => setNuevaZona({...nuevaZona, zone_type: e.target.value})}>
+              <option value="aviso">⚠️ Aviso</option>
+              <option value="emergencia">🚨 Emergencia</option>
+              <option value="zona_segura">✅ Zona Segura</option>
+            </select>
+
+            <input 
+              type="text" 
+              placeholder="Nombre de la zona (Ej: Parque Central)" 
+              value={nuevaZona.zone_name} 
+              onChange={e => setNuevaZona({...nuevaZona, zone_name: e.target.value})} 
+              style={inputStyle} 
+            />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button onClick={() => setShowZoneModal(false)} style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent', borderColor: 'transparent', boxShadow: 'none' }}>Cancelar</button>
