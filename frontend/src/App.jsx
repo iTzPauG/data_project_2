@@ -58,7 +58,7 @@ export default function App() {
   const [historyRoute, setHistoryRoute] = useState(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // Estados Modales - AÑADIDO zone_data
+  // Estados Modales
   const [showKidModal, setShowKidModal] = useState(false);
   const [kidName, setKidName] = useState("");
   const [deviceTag, setDeviceTag] = useState(""); 
@@ -73,7 +73,6 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Cargar niños de la DB al loguearse y auto-seleccionar el primero
   useEffect(() => {
     if (!loggedUser) return;
     
@@ -93,7 +92,6 @@ export default function App() {
     fetchKids();
   }, [loggedUser]); 
 
-  // Cargar zonas de la DB al loguearse
   useEffect(() => {
     if (!loggedUser) return;
     const fetchZones = async () => {
@@ -107,13 +105,12 @@ export default function App() {
     fetchZones();
   }, [loggedUser]);
 
-  // Al cambiar de niño, resetear el centrado para la vista en vivo
   useEffect(() => {
     setHaCentradoInicial(false);
     setUbicacionUsuario(null);
   }, [selectedKidTag]);
 
-  // Listener de Firebase para UBICACIÓN EN VIVO
+  // Listener Firebase (Ubicación)
   useEffect(() => {    
     if (!db || !selectedKidTag || activeView !== 'live' || !loggedUser) return;
 
@@ -131,17 +128,15 @@ export default function App() {
               setHaCentradoInicial(true); 
             }
           }
-        } else {
-          console.warn(`No hay datos en Firestore para tag_id: ${selectedKidTag}`);
         }
       },
-      (error) => console.error("Error Firebase (Ubicación):", error)
+      (error) => console.error("Error Firebase:", error)
     );
 
     return () => unsubscribe();
   }, [selectedKidTag, haCentradoInicial, activeView, loggedUser]);
 
-  // Listener de Firebase para NOTIFICACIONES (Alertas de Zona)
+  // Listener Firebase (Notificaciones)
   useEffect(() => {
     if (!db || !loggedUser) return;
 
@@ -164,9 +159,10 @@ export default function App() {
                 duration: 6000, 
                 position: 'top-right',
                 style: {
-                  background: '#333',
+                  background: '#2c2c2c',
                   color: '#fff',
-                  border: '1px solid #dc2626'
+                  border: '1px solid #ef4444',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)'
                 },
               }
             );
@@ -280,8 +276,7 @@ export default function App() {
   };
 
   const handleSaveZone = async () => {
-    // AÑADIDO: Comprobamos que el nombre de la zona no esté vacío
-    if (nuevaZona.latitude == null || !nuevaZona.tag_id || !nuevaZona.zone_data.trim()) {
+    if (nuevaZona.latitude == null || !nuevaZona.tag_id || !nuevaZona.zone_name.trim()) {
       alert("Por favor, selecciona un punto, asigna un niño y dale un nombre a la zona.");
       return;
     }
@@ -293,9 +288,9 @@ export default function App() {
         longitude: nuevaZona.longitude,
         radius: nuevaZona.radius,
         zone_type: nuevaZona.zone_type,
-        zone_name: nuevaZona.zone_name,
+        zone_data: nuevaZona.zone_name, 
       });
-      setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: TARGET_USER_ID }]);
+      setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: loggedUser.user_id }]);
       setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" });
       setShowZoneModal(false);
     } catch (error) {
@@ -314,17 +309,17 @@ export default function App() {
 
   const getZoneColor = (zoneType) => {
     switch(zoneType) {
-      case 'emergencia': return [255, 0, 0, 80]; // rojo
-      case 'zona_segura': return [0, 255, 0, 80]; // verde
-      default: return [255, 165, 0, 80]; // naranja para aviso
+      case 'emergencia': return [239, 68, 68, 80]; // Tailwind red-500
+      case 'zona_segura': return [34, 197, 94, 80]; // Tailwind green-500
+      default: return [245, 158, 11, 80]; // Tailwind amber-500
     }
   };
 
   const getZoneLineColor = (zoneType) => {
     switch(zoneType) {
-      case 'emergencia': return [255, 0, 0, 255];
-      case 'zona_segura': return [0, 255, 0, 255];
-      default: return [255, 165, 0, 255];
+      case 'emergencia': return [239, 68, 68, 255];
+      case 'zona_segura': return [34, 197, 94, 255];
+      default: return [245, 158, 11, 255];
     }
   };
 
@@ -338,7 +333,7 @@ export default function App() {
     activeView === 'live' && ubicacionUsuario && new ScatterplotLayer({
       id: 'usuario-vivo', data: [ubicacionUsuario], pickable: true, stroked: true, filled: true,
       getPosition: d => [d.longitude, d.latitude], radiusUnits: 'pixels', getRadius: 8, 
-      getFillColor: [66, 133, 244, 255], getLineColor: [255, 255, 255, 255], getLineWidth: 3,
+      getFillColor: [59, 130, 246, 255], getLineColor: [255, 255, 255, 255], getLineWidth: 3, // Tailwind blue-500
       transitions: { getPosition: 1000 }
     }),
     activeView === 'history' && historyRoute && new PathLayer({
@@ -347,47 +342,68 @@ export default function App() {
     })
   ].filter(Boolean);
 
-  const appContainerStyle = { display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#212529', overflow: 'hidden' };
-  const sidebarStyle = { width: '320px', display: 'flex', flexDirection: 'column', padding: '30px 20px', boxSizing: 'border-box', overflowY: 'auto' };
-  const mapWrapperStyle = { flex: 1, position: 'relative', margin: '20px 20px 20px 0', borderRadius: '24px', overflow: 'hidden', backgroundColor: '#343a40' };
-  const buttonStyle = { padding: '15px 20px', margin: '0 0 15px 0', backgroundColor: '#343a40', border: '1px solid #495057', borderRadius: '12px', color: '#f8f9fa', cursor: 'pointer', textAlign: 'left' };
-  const activeButtonStyle = { ...buttonStyle, backgroundColor: '#3b82f6', border: '1px solid #2563eb' };
-  const inputStyle = { width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #495057', backgroundColor: '#212529', color: '#fff', boxSizing: 'border-box' };
+
+  // --- ESTILOS MEJORADOS ---
+  const appContainerStyle = { display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#121212', overflow: 'hidden', fontFamily: "'Inter', system-ui, sans-serif" };
+  const sidebarStyle = { width: '340px', display: 'flex', flexDirection: 'column', padding: '32px 24px', boxSizing: 'border-box', overflowY: 'auto', backgroundColor: '#18181b', borderRight: '1px solid #27272a' };
+  const mapWrapperStyle = { flex: 1, position: 'relative', margin: '24px 24px 24px 0', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#27272a', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)' };
+  
+  const buttonBaseStyle = { padding: '14px 20px', margin: '0 0 12px 0', borderRadius: '10px', fontSize: '15px', fontWeight: '500', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease', border: '1px solid transparent' };
+  const buttonStyle = { ...buttonBaseStyle, backgroundColor: '#27272a', color: '#e4e4e7', border: '1px solid #3f3f46' };
+  const activeButtonStyle = { ...buttonBaseStyle, backgroundColor: '#3b82f6', color: 'white', boxShadow: '0 4px 14px -4px rgba(59, 130, 246, 0.4)' };
+  const primaryButtonStyle = { ...buttonBaseStyle, backgroundColor: '#10b981', color: 'white', textAlign: 'center', boxShadow: '0 4px 14px -4px rgba(16, 185, 129, 0.4)' };
+  const dangerButtonStyle = { ...buttonBaseStyle, backgroundColor: '#ef4444', color: 'white', marginTop: 'auto', textAlign: 'center' };
+  
+  const inputStyle = { width: '100%', padding: '14px 16px', marginBottom: '16px', borderRadius: '10px', border: '1px solid #3f3f46', backgroundColor: '#27272a', color: '#f4f4f5', fontSize: '15px', boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s' };
   const dateInputStyle = { ...inputStyle, cursor: 'pointer', colorScheme: 'dark' };
-  const zoomButtonStyle = { width: '45px', height: '45px', backgroundColor: '#343a40', color: '#f8f9fa', border: '1px solid #495057', borderRadius: '12px', fontSize: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+  const zoomButtonStyle = { width: '40px', height: '40px', backgroundColor: '#18181b', color: '#e4e4e7', border: '1px solid #3f3f46', borderRadius: '8px', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)', transition: 'background-color 0.2s' };
+  
+  const modalOverlayStyle = { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 };
+  const modalContentStyle = { backgroundColor: '#18181b', padding: '32px', borderRadius: '20px', width: '450px', border: '1px solid #27272a', color: 'white', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' };
+
 
   // ==========================================
   // PANTALLA LOGIN / REGISTRO
   // ==========================================
   if (!loggedUser) {
     return (
-      <div style={{ display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#212529', justifyContent: 'center', alignItems: 'center', fontFamily: 'sans-serif' }}>
-        <form onSubmit={handleAuth} style={{ backgroundColor: '#343a40', padding: '40px', borderRadius: '16px', width: '380px', border: '1px solid #495057' }}>
-          <h2 style={{ color: '#f8f9fa', textAlign: 'center', marginBottom: '30px' }}>
-            {isLoginMode ? 'Iniciar Sesión' : 'Crear Nueva Cuenta'}
-          </h2>
+      <div style={{ display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <form onSubmit={handleAuth} style={{ backgroundColor: '#18181b', padding: '48px', borderRadius: '24px', width: '400px', border: '1px solid #27272a', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ color: '#ffffff', margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700' }}>
+              {isLoginMode ? 'Bienvenido' : 'Crear Cuenta'}
+            </h2>
+            <p style={{ color: '#a1a1aa', margin: 0, fontSize: '15px' }}>
+              {isLoginMode ? 'Inicia sesión para acceder al panel' : 'Rellena los datos para comenzar'}
+            </p>
+          </div>
+
           {authError && (
-            <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '10px', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', textAlign: 'center' }}>
+            <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '12px', borderRadius: '10px', marginBottom: '24px', fontSize: '14px', textAlign: 'center', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
               {authError}
             </div>
           )}
+          
           {!isLoginMode && (
             <>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '12px' }}>
                 <input type="text" placeholder="Nombre" value={regNombre} onChange={e => setRegNombre(e.target.value)} style={inputStyle} required />
                 <input type="text" placeholder="Apellidos" value={regApellidos} onChange={e => setRegApellidos(e.target.value)} style={inputStyle} required />
               </div>
               <input type="tel" placeholder="Teléfono" value={regTelefono} onChange={e => setRegTelefono(e.target.value)} style={inputStyle} required />
             </>
           )}
+          
           <input type="email" placeholder="Correo Electrónico" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={inputStyle} required />
           <input type="password" placeholder="Contraseña" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} style={inputStyle} required />
-          <button type="submit" disabled={isAuthenticating} style={{ width: '100%', padding: '15px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+          
+          <button type="submit" disabled={isAuthenticating} style={{ width: '100%', padding: '16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 14px -4px rgba(59, 130, 246, 0.4)', marginTop: '8px' }}>
             {isAuthenticating ? 'Procesando...' : (isLoginMode ? 'Entrar al Panel' : 'Registrarse')}
           </button>
-          <div style={{ textAlign: 'center', color: '#adb5bd', fontSize: '14px', marginTop: '20px' }}>
+          
+          <div style={{ textAlign: 'center', color: '#a1a1aa', fontSize: '14px', marginTop: '24px' }}>
             {isLoginMode ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
-            <span onClick={() => setIsLoginMode(!isLoginMode)} style={{ color: '#3b82f6', cursor: 'pointer', textDecoration: 'underline' }}>
+            <span onClick={() => setIsLoginMode(!isLoginMode)} style={{ color: '#60a5fa', cursor: 'pointer', fontWeight: '500', transition: 'color 0.2s' }}>
               {isLoginMode ? 'Regístrate aquí' : 'Inicia sesión'}
             </span>
           </div>
@@ -401,20 +417,18 @@ export default function App() {
   // ==========================================
   return (
     <div style={appContainerStyle}>
-      
-      {/* Componente Toaster necesario para renderizar los popups */}
       <Toaster />
 
       {/* MODAL: AÑADIR NIÑO */}
       {showKidModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#212529', padding: '30px', borderRadius: '16px', width: '400px', border: '1px solid #495057', color: 'white' }}> 
-            <h3>Registrar Nuevo Niño</h3>
+        <div style={modalOverlayStyle}>
+          <div style={modalContentStyle}> 
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '20px' }}>Registrar Nuevo Niño</h3>
             <input type="text" placeholder="Nombre" value={kidName} onChange={e => setKidName(e.target.value)} style={inputStyle} />
             <input type="text" placeholder="Tag ID del dispositivo" value={deviceTag} onChange={e => setDeviceTag(e.target.value)} style={inputStyle} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setShowKidModal(false)} style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent' }}>Cancelar</button>
-              <button onClick={handleSaveKid} style={{ ...buttonStyle, margin: 0, backgroundColor: '#3b82f6' }}>Guardar</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+              <button onClick={() => setShowKidModal(false)} style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent', border: 'none' }}>Cancelar</button>
+              <button onClick={handleSaveKid} style={{ ...activeButtonStyle, margin: 0 }}>Guardar Niño</button>
             </div>
           </div>
         </div>
@@ -422,16 +436,15 @@ export default function App() {
 
       {/* MODAL: AÑADIR ZONA */}
       {showZoneModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#212529', padding: '30px', borderRadius: '16px', width: '700px', maxWidth: '95vw', border: '1px solid #495057', color: 'white', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={modalOverlayStyle}>
+          <div style={{ ...modalContentStyle, width: '700px', maxWidth: '95vw' }}>
             
-            <h3 style={{ margin: 0, fontSize: '18px' }}>🛑 Nueva Zona Restringida</h3>
-            <p style={{ margin: 0, color: '#adb5bd', fontSize: '14px' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '20px' }}>🛑 Nueva Zona Restringida</h3>
+            <p style={{ margin: '0 0 20px 0', color: '#a1a1aa', fontSize: '14px' }}>
               Haz clic en el mapa para seleccionar el centro de la zona.
             </p>
 
-            {/* MAPA del modal */}
-            <div style={{ position: 'relative', height: '380px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #495057' }}>
+            <div style={{ position: 'relative', height: '350px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #3f3f46', marginBottom: '20px' }}>
               <DeckGL
                 key="zone-modal-map"
                 viewState={miniMapViewState}
@@ -446,8 +459,8 @@ export default function App() {
                     getPosition: d => [d.longitude, d.latitude],
                     getRadius: d => d.radius,
                     radiusUnits: 'meters',
-                    getFillColor: [255, 80, 80, 60],
-                    getLineColor: [255, 80, 80, 220],
+                    getFillColor: getZoneColor(nuevaZona.zone_type),
+                    getLineColor: getZoneLineColor(nuevaZona.zone_type),
                     stroked: true,
                     filled: true,
                     getLineWidth: 2,
@@ -459,7 +472,7 @@ export default function App() {
                     getRadius: 6,
                     radiusUnits: 'pixels',
                     getFillColor: [255, 255, 255, 255],
-                    getLineColor: [255, 80, 80, 255],
+                    getLineColor: getZoneLineColor(nuevaZona.zone_type),
                     stroked: true,
                     getLineWidth: 2,
                   }),
@@ -469,97 +482,52 @@ export default function App() {
               </DeckGL>
 
               {nuevaZona.latitude == null && (
-                <div style={{
-                  position: 'absolute', top: '50%', left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  backgroundColor: 'rgba(0,0,0,0.6)', color: 'white',
-                  padding: '10px 18px', borderRadius: '8px', fontSize: '14px',
-                  pointerEvents: 'none'
-                }}>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', padding: '12px 20px', borderRadius: '30px', fontSize: '14px', fontWeight: '500', pointerEvents: 'none' }}>
                   👆 Haz clic para colocar la zona
                 </div>
               )}
             </div>
 
-            {/* AÑADIDO: INPUT PARA EL NOMBRE DE LA ZONA (ZONE_DATA) */}
-            <div>
-              <label style={{ fontSize: '14px', color: '#adb5bd', display: 'block', marginBottom: '6px' }}>
-                Nombre de la Zona:
-              </label>
-              <input
-                type="text"
-                placeholder="Ej. Colegio, Parque, Casa Abuela..."
-                value={nuevaZona.zone_data}
-                onChange={e => setNuevaZona(prev => ({ ...prev, zone_data: e.target.value }))}
-                style={{ ...inputStyle, marginBottom: '10px' }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ fontSize: '13px', color: '#a1a1aa', display: 'block', marginBottom: '6px', fontWeight: '500' }}>Nombre de la Zona</label>
+                <input type="text" placeholder="Ej: Colegio" value={nuevaZona.zone_name} onChange={e => setNuevaZona({...nuevaZona, zone_name: e.target.value})} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontSize: '13px', color: '#a1a1aa', display: 'block', marginBottom: '6px', fontWeight: '500' }}>Asignar a</label>
+                <select style={inputStyle} value={nuevaZona.tag_id} onChange={e => setNuevaZona({...nuevaZona, tag_id: e.target.value})}>
+                  {kids.length === 0 ? (
+                    <option value="" disabled>No hay niños</option>
+                  ) : (
+                    <>
+                      <option value="" disabled>Seleccionar...</option>
+                      {kids.map(k => <option key={k.tag_id} value={k.tag_id}>{k.name}</option>)}
+                    </>
+                  )}
+                </select>
+              </div>
             </div>
 
-            {/* RADIO */}
-            <div>
-              <label style={{ fontSize: '14px', color: '#adb5bd', display: 'block', marginBottom: '6px' }}>
-                Radio: <strong style={{ color: 'white' }}>{nuevaZona.radius} m</strong>
-              </label>
-              <input
-                type="range" min="20" max="500" step="10"
-                value={nuevaZona.radius}
-                onChange={e => setNuevaZona(prev => ({ ...prev, radius: Number(e.target.value) }))}
-                style={{ width: '100%', accentColor: '#3b82f6' }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+              <div>
+                <label style={{ fontSize: '13px', color: '#a1a1aa', display: 'block', marginBottom: '6px', fontWeight: '500' }}>
+                  Radio: <span style={{ color: 'white' }}>{nuevaZona.radius} m</span>
+                </label>
+                <input type="range" min="20" max="600" step="10" value={nuevaZona.radius} onChange={e => setNuevaZona({...nuevaZona, radius: Number(e.target.value)})} style={{ width: '100%', accentColor: '#3b82f6', marginTop: '10px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '13px', color: '#a1a1aa', display: 'block', marginBottom: '6px', fontWeight: '500' }}>Tipo de Alerta</label>
+                <select style={inputStyle} value={nuevaZona.zone_type} onChange={e => setNuevaZona({...nuevaZona, zone_type: e.target.value})}>
+                  <option value="aviso">⚠️ Aviso Simple</option>
+                  <option value="emergencia">🚨 Emergencia (Peligro)</option>
+                  <option value="zona_segura">✅ Zona Segura</option>
+                </select>
+              </div>
             </div>
-            <input 
-              type="range" 
-              min="20" 
-              max="600" 
-              step="10" 
-              value={nuevaZona.radius} 
-              onChange={e => setNuevaZona({...nuevaZona, radius: Number(e.target.value)})} 
-              style={{ width: '100%', marginBottom: '20px', cursor: 'pointer' }} 
-            />
 
-            <select style={inputStyle} value={nuevaZona.tag_id} onChange={e => setNuevaZona({...nuevaZona, tag_id: e.target.value})}>
-              {kids.length === 0 ? (
-                <option value="" disabled style={{ fontStyle: 'italic' }}>No hay niños registrados</option>
-              ) : (
-                <>
-                  <option value="" disabled>Asignar a un niño...</option>
-                  {kids.map(k => (
-                    <option key={k.tag_id} value={k.tag_id}>{k.name}</option>
-                  ))}
-                </>
-              )}
-            </select>
-
-            <select style={inputStyle} value={nuevaZona.zone_type} onChange={e => setNuevaZona({...nuevaZona, zone_type: e.target.value})}>
-              <option value="aviso">⚠️ Aviso</option>
-              <option value="emergencia">🚨 Emergencia</option>
-              <option value="zona_segura">✅ Zona Segura</option>
-            </select>
-
-            <input 
-              type="text" 
-              placeholder="Nombre de la zona (Ej: Parque Central)" 
-              value={nuevaZona.zone_name} 
-              onChange={e => setNuevaZona({...nuevaZona, zone_name: e.target.value})} 
-              style={inputStyle} 
-            />
-
-            {/* BOTONES */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                onClick={() => {
-                  setShowZoneModal(false);
-                  setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_data: "" }); // Reseteado con zone_data
-                }}
-                style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent' }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveZone}
-                disabled={isSavingZone}
-                style={{ ...buttonStyle, margin: 0, backgroundColor: '#10b981', border: '1px solid #059669', opacity: isSavingZone ? 0.6 : 1 }}
-              >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => { setShowZoneModal(false); setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" }); }} style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent', border: 'none' }}>Cancelar</button>
+              <button onClick={handleSaveZone} disabled={isSavingZone} style={{ ...primaryButtonStyle, margin: 0, opacity: isSavingZone ? 0.7 : 1 }}>
                 {isSavingZone ? 'Guardando...' : '✅ Confirmar Zona'}
               </button>
             </div>
@@ -570,50 +538,79 @@ export default function App() {
 
       {/* SIDEBAR */}
       <div style={sidebarStyle}>
-        <div style={{ marginBottom: '30px' }}>
-          <h2 style={{ color: '#f8f9fa', fontSize: '24px', margin: 0 }}>Panel Tracking</h2>
-          <span style={{ color: '#adb5bd', fontSize: '14px' }}>Usuario: {loggedUser.nombre}</span>
+        <div style={{ marginBottom: '40px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#3b82f6', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'white', fontWeight: 'bold' }}>T</div>
+            <h2 style={{ color: '#ffffff', fontSize: '22px', margin: 0, fontWeight: '700', letterSpacing: '-0.5px' }}>TrackKids</h2>
+          </div>
+          <span style={{ color: '#a1a1aa', fontSize: '13px', display: 'block' }}>Usuario: <span style={{ color: '#e4e4e7', fontWeight: '500' }}>{loggedUser.nombre}</span></span>
         </div>
-        <button style={activeView === 'live' ? activeButtonStyle : buttonStyle} onClick={() => setActiveView('live')}>📍 En Vivo</button>
-        <button style={activeView === 'history' ? activeButtonStyle : buttonStyle} onClick={() => setActiveView('history')}>🕒 Historial</button>
-        <hr style={{ border: 'none', borderTop: '1px solid #495057', margin: '15px 0' }} />
+        
+        <div style={{ marginBottom: '24px' }}>
+          <p style={{ fontSize: '12px', textTransform: 'uppercase', color: '#71717a', fontWeight: '700', letterSpacing: '1px', marginBottom: '12px' }}>Vistas</p>
+          <button style={activeView === 'live' ? activeButtonStyle : buttonStyle} onClick={() => setActiveView('live')}>📍 Rastreo en Vivo</button>
+          <button style={activeView === 'history' ? activeButtonStyle : buttonStyle} onClick={() => setActiveView('history')}>🕒 Historial de Rutas</button>
+        </div>
+
+        <hr style={{ border: 'none', borderTop: '1px solid #27272a', margin: '0 0 24px 0' }} />
+        
         {activeView === 'live' ? (
-          <>
-            <button style={buttonStyle} onClick={() => setShowKidModal(true)}>👶 Añadir Niño</button>
-            <button style={buttonStyle} onClick={() => setShowZoneModal(true)}>🛑 Añadir Zona</button>
-            <button style={{ ...buttonStyle, marginTop: 'auto', backgroundColor: '#dc2626' }} onClick={() => setLoggedUser(null)}>🚪 Salir</button>
-          </>
+          <div>
+            <p style={{ fontSize: '12px', textTransform: 'uppercase', color: '#71717a', fontWeight: '700', letterSpacing: '1px', marginBottom: '12px' }}>Gestión</p>
+            <button style={buttonStyle} onClick={() => setShowKidModal(true)}>👶 Añadir Nuevo Niño</button>
+            <button style={buttonStyle} onClick={() => setShowZoneModal(true)}>🛑 Configurar Zona</button>
+          </div>
         ) : (
           <div>
+            <p style={{ fontSize: '12px', textTransform: 'uppercase', color: '#71717a', fontWeight: '700', letterSpacing: '1px', marginBottom: '12px' }}>Filtros</p>
             <input type="date" value={historyDate} onChange={e => setHistoryDate(e.target.value)} style={dateInputStyle} />
-            <div style={{ display: 'flex', gap: '5px' }}>
-              <input type="time" value={historyStartTime} onChange={e => setHistoryStartTime(e.target.value)} style={dateInputStyle} />
-              <input type="time" value={historyEndTime} onChange={e => setHistoryEndTime(e.target.value)} style={dateInputStyle} />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input type="time" value={historyStartTime} onChange={e => setHistoryStartTime(e.target.value)} style={{...dateInputStyle, flex: 1}} />
+              <input type="time" value={historyEndTime} onChange={e => setHistoryEndTime(e.target.value)} style={{...dateInputStyle, flex: 1}} />
             </div>
-            <button onClick={handleSearchHistory} disabled={isLoadingHistory} style={{ ...buttonStyle, width: '100%', backgroundColor: '#10b981', textAlign: 'center' }}>
-              {isLoadingHistory ? '...' : '🔍 Buscar'}
+            <button onClick={handleSearchHistory} disabled={isLoadingHistory} style={{ ...primaryButtonStyle, width: '100%', marginTop: '8px' }}>
+              {isLoadingHistory ? 'Buscando...' : '🔍 Buscar Ruta'}
             </button>
           </div>
         )}
+        
+        <button style={dangerButtonStyle} onClick={() => setLoggedUser(null)}>🚪 Cerrar Sesión</button>
       </div>
 
       {/* MAPA PRINCIPAL */}
       <div style={mapWrapperStyle}>
-        <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10, display: 'flex', gap: '10px' }}>
+        
+        {/* Selector de niños superior */}
+        <div style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 10, display: 'flex', gap: '10px', flexWrap: 'wrap', maxWidth: '70%' }}>
           {kids.map(kid => (
             <button
               key={kid.tag_id}
               onClick={() => setSelectedKidTag(kid.tag_id)}
-              style={{ padding: '10px 20px', borderRadius: '25px', border: 'none', backgroundColor: selectedKidTag === kid.tag_id ? '#3b82f6' : '#212529', color: 'white', cursor: 'pointer' }}
+              style={{ 
+                padding: '8px 16px', 
+                borderRadius: '30px', 
+                border: selectedKidTag === kid.tag_id ? '1px solid #60a5fa' : '1px solid #3f3f46', 
+                backgroundColor: selectedKidTag === kid.tag_id ? 'rgba(59, 130, 246, 0.9)' : 'rgba(39, 39, 42, 0.9)', 
+                color: 'white', 
+                fontWeight: '500',
+                fontSize: '14px',
+                cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
+                transition: 'all 0.2s',
+                boxShadow: selectedKidTag === kid.tag_id ? '0 4px 12px -2px rgba(59, 130, 246, 0.5)' : '0 2px 4px rgba(0,0,0,0.2)'
+              }}
             >
               {kid.name}
             </button>
           ))}
         </div>
-        <div style={{ position: 'absolute', bottom: '30px', right: '30px', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+        {/* Controles de Zoom */}
+        <div style={{ position: 'absolute', bottom: '24px', right: '24px', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button style={zoomButtonStyle} onClick={handleZoomIn}>+</button>
           <button style={zoomButtonStyle} onClick={handleZoomOut}>-</button>
         </div>
+
         {mapReady && (
           <DeckGL viewState={viewState} onViewStateChange={e => setViewState(e.viewState)} controller={true} layers={mainLayers}>
             <Map mapboxAccessToken={MAPBOX_TOKEN} mapStyle="mapbox://styles/mapbox/dark-v11" />
