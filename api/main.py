@@ -19,6 +19,10 @@ from fastapi import Response
 
 app = FastAPI(title="Location & Zone Ingestion API")
 
+@app.on_event("startup")
+async def startup_event():
+    Base.metadata.create_all(bind=engine)
+
 @app.options("/{path:path}")
 async def options_handler(path: str, response: Response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -61,9 +65,6 @@ class ZoneDB(Base):
     longitude = Column(Float)
     radius = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
-
-# Crea la tabla automáticamente si no existe
-Base.metadata.create_all(bind=engine)
 
 # Dependencia para obtener la DB
 def get_db():
@@ -117,7 +118,6 @@ class ZoneRequest(BaseModel):
     timestamp: Optional[str] = None
     node_id: Optional[str] = None
 
-# --- ENDPOINTS ---
     @field_validator("latitude")
     @classmethod
     def validate_latitude(cls, v):
