@@ -66,7 +66,7 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "DATABASE_URL"
         # Usamos el socket de Unix (/cloudsql/...) para conectar de forma segura
-        value = "postgresql://${var.cloudsql_user}:${random_password.cloudsql_password.result}@/appdb?host=/cloudsql/${var.gcp_project_id}:${var.gcp_region}:${var.cloudsql_instance_name}"
+        value = "postgresql://${var.cloudsql_user}:${urlencode(random_password.cloudsql_password.result)}@/appdb?host=/cloudsql/${var.gcp_project_id}:${var.gcp_region}:${var.cloudsql_instance_name}"
       }
     }
   }
