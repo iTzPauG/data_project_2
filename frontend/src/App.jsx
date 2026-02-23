@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { Map } from 'react-map-gl';
-import { ScatterplotLayer, PathLayer } from '@deck.gl/layers'; 
+import { ScatterplotLayer, PathLayer } from '@deck.gl/layers';
 import axios from 'axios';
 
 // --- IMPORTAR FIREBASE ---
@@ -27,15 +27,15 @@ const getYesterdayDate = () => {
 
 export default function App() {
   // --- 2. ESTADOS DE LOGIN Y REGISTRO ---
-  const [loggedUser, setLoggedUser] = useState(null); 
+  const [loggedUser, setLoggedUser] = useState(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
-  
+
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [regNombre, setRegNombre] = useState("");
   const [regApellidos, setRegApellidos] = useState("");
   const [regTelefono, setRegTelefono] = useState("");
-  
+
   const [authError, setAuthError] = useState("");
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -65,7 +65,7 @@ export default function App() {
   // Estados Modales
   const [showKidModal, setShowKidModal] = useState(false);
   const [kidName, setKidName] = useState("");
-  const [deviceTag, setDeviceTag] = useState(""); 
+  const [deviceTag, setDeviceTag] = useState("");
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [isSavingZone, setIsSavingZone] = useState(false);
   const [miniMapViewState, setMiniMapViewState] = useState(INITIAL_VIEW_STATE);
@@ -79,7 +79,7 @@ export default function App() {
 
   useEffect(() => {
     if (!loggedUser) return;
-    
+
     const fetchKids = async () => {
       try {
         const res = await axios.get(`${API_URL}/kids/${loggedUser.user_id}`);
@@ -92,7 +92,7 @@ export default function App() {
         console.error("Error cargando niños:", error);
       }
     };
-    
+
     fetchKids();
   }, [loggedUser]); 
 
@@ -129,7 +129,7 @@ export default function App() {
             setUbicacionUsuario({ latitude: lat, longitude: lng, timestamp: data.timestamp, userId: data.tag_id });
             if (!haCentradoInicial) {
               setViewState({ longitude: lng, latitude: lat, zoom: 16, pitch: 45, bearing: 0, transitionDuration: 2000 });
-              setHaCentradoInicial(true); 
+              setHaCentradoInicial(true);
             }
           }
         }
@@ -241,21 +241,21 @@ export default function App() {
         });
         if (res.data.status === "ok") setLoggedUser(res.data);
       } else {
-        const newUserId = Date.now().toString(); 
+        const newUserId = Date.now().toString();
         const res = await axios.post(`${API_URL}/users`, {
           user_id: newUserId,
-          username: loginEmail.split('@')[0], 
+          username: loginEmail.split('@')[0],
           nombre: regNombre,
           apellidos: regApellidos,
           correo: loginEmail,
           telefono: regTelefono,
           password: loginPassword
         });
-        
+
         if (res.data.status === "ok") {
           alert("¡Cuenta creada con éxito! Por favor, inicia sesión para continuar.");
           setIsLoginMode(true);
-          setLoginPassword(""); 
+          setLoginPassword("");
         }
       }
     } catch (error) {
@@ -268,15 +268,15 @@ export default function App() {
   const handleSaveKid = async () => {
     if (!kidName.trim() || !deviceTag.trim()) return;
     const newKid = { name: kidName, tag_id: deviceTag };
-    setKids([...kids, newKid]); 
+    setKids([...kids, newKid]);
     try {
-      await axios.post(`${API_URL}/tags`, { 
-        tag_id: deviceTag, 
-        nombre: kidName, 
-        user_id: loggedUser.user_id 
+      await axios.post(`${API_URL}/tags`, {
+        tag_id: deviceTag,
+        nombre: kidName,
+        user_id: loggedUser.user_id
       });
       setShowKidModal(false);
-      setKidName(""); 
+      setKidName("");
       setDeviceTag("");
       if (kids.length === 0) {
           setSelectedKidTag(deviceTag);
@@ -351,12 +351,12 @@ export default function App() {
     new ScatterplotLayer({
       id: 'zonas-sql', data: zonasFiltradas, pickable: true, stroked: true, filled: true,
       getPosition: d => [parseFloat(d.longitude), parseFloat(d.latitude)],
-      getRadius: d => parseFloat(d.radius), radiusUnits: 'meters', 
+      getRadius: d => parseFloat(d.radius), radiusUnits: 'meters',
       getFillColor: d => getZoneColor(d.zone_type), getLineColor: d => getZoneLineColor(d.zone_type), getLineWidth: 2
     }),
     activeView === 'live' && ubicacionUsuario && new ScatterplotLayer({
       id: 'usuario-vivo', data: [ubicacionUsuario], pickable: true, stroked: true, filled: true,
-      getPosition: d => [d.longitude, d.latitude], radiusUnits: 'pixels', getRadius: 8, 
+      getPosition: d => [d.longitude, d.latitude], radiusUnits: 'pixels', getRadius: 8,
       getFillColor: [66, 133, 244, 255], getLineColor: [255, 255, 255, 255], getLineWidth: 3,
       transitions: { getPosition: 1000 }
     }),
@@ -366,51 +366,64 @@ export default function App() {
     })
   ].filter(Boolean);
 
-  const appContainerStyle = { display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#212529', overflow: 'hidden' };
-  const sidebarStyle = { width: '320px', display: 'flex', flexDirection: 'column', padding: '30px 20px', boxSizing: 'border-box', overflowY: 'auto' };
-  const mapWrapperStyle = { flex: 1, position: 'relative', margin: '20px 20px 20px 0', borderRadius: '24px', overflow: 'hidden', backgroundColor: '#343a40' };
-  const buttonStyle = { padding: '15px 20px', margin: '0 0 15px 0', backgroundColor: '#343a40', border: '1px solid #495057', borderRadius: '12px', color: '#f8f9fa', cursor: 'pointer', textAlign: 'left' };
-  const activeButtonStyle = { ...buttonStyle, backgroundColor: '#3b82f6', border: '1px solid #2563eb' };
-  const inputStyle = { width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '8px', border: '1px solid #495057', backgroundColor: '#212529', color: '#fff', boxSizing: 'border-box' };
-  const dateInputStyle = { ...inputStyle, cursor: 'pointer', colorScheme: 'dark' };
-  const zoomButtonStyle = { width: '45px', height: '45px', backgroundColor: '#343a40', color: '#f8f9fa', border: '1px solid #495057', borderRadius: '12px', fontSize: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+  // --- 6. ESTILOS COMPARTIDOS ---
+  const modalInputStyle = {
+    width: '100%', padding: '11px 12px', marginBottom: '12px', borderRadius: '8px',
+    border: '1px solid #1e293b', backgroundColor: '#0f1923', color: '#f1f5f9',
+    fontSize: '14px', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit', colorScheme: 'dark'
+  };
 
   // ==========================================
   // PANTALLA LOGIN / REGISTRO
   // ==========================================
   if (!loggedUser) {
     return (
-      <div style={{ display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#212529', justifyContent: 'center', alignItems: 'center', fontFamily: 'sans-serif' }}>
-        <form onSubmit={handleAuth} style={{ backgroundColor: '#343a40', padding: '40px', borderRadius: '16px', width: '380px', border: '1px solid #495057' }}>
-          <h2 style={{ color: '#f8f9fa', textAlign: 'center', marginBottom: '30px' }}>
-            {isLoginMode ? 'Iniciar Sesión' : 'Crear Nueva Cuenta'}
-          </h2>
-          {authError && (
-            <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '10px', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', textAlign: 'center' }}>
-              {authError}
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#111921', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ width: '420px' }}>
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', marginBottom: '28px' }}>
+            <div style={{ backgroundColor: '#4799eb', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '28px', color: '#fff', display: 'block', lineHeight: 1 }}>family_restroom</span>
             </div>
-          )}
-          {!isLoginMode && (
-            <>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input type="text" placeholder="Nombre" value={regNombre} onChange={e => setRegNombre(e.target.value)} style={inputStyle} required />
-                <input type="text" placeholder="Apellidos" value={regApellidos} onChange={e => setRegApellidos(e.target.value)} style={inputStyle} required />
-              </div>
-              <input type="tel" placeholder="Teléfono" value={regTelefono} onChange={e => setRegTelefono(e.target.value)} style={inputStyle} required />
-            </>
-          )}
-          <input type="email" placeholder="Correo Electrónico" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={inputStyle} required />
-          <input type="password" placeholder="Contraseña" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} style={inputStyle} required />
-          <button type="submit" disabled={isAuthenticating} style={{ width: '100%', padding: '15px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-            {isAuthenticating ? 'Procesando...' : (isLoginMode ? 'Entrar al Panel' : 'Registrarse')}
-          </button>
-          <div style={{ textAlign: 'center', color: '#adb5bd', fontSize: '14px', marginTop: '20px' }}>
-            {isLoginMode ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
-            <span onClick={() => setIsLoginMode(!isLoginMode)} style={{ color: '#3b82f6', cursor: 'pointer', textDecoration: 'underline' }}>
-              {isLoginMode ? 'Regístrate aquí' : 'Inicia sesión'}
-            </span>
+            <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#f1f5f9', margin: 0, letterSpacing: '-0.025em' }}>FamTrack</h1>
           </div>
-        </form>
+
+          <form onSubmit={handleAuth} style={{ backgroundColor: '#1a2332', padding: '36px', borderRadius: '16px', border: '1px solid #1e293b', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+            <h2 style={{ color: '#f1f5f9', textAlign: 'center', marginTop: 0, marginBottom: '24px', fontSize: '18px', fontWeight: '700' }}>
+              {isLoginMode ? 'Iniciar sesión' : 'Crear nueva cuenta'}
+            </h2>
+
+            {authError && (
+              <div style={{ backgroundColor: 'rgba(220, 38, 38, 0.12)', color: '#f87171', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', textAlign: 'center', border: '1px solid rgba(220, 38, 38, 0.25)' }}>
+                {authError}
+              </div>
+            )}
+
+            {!isLoginMode && (
+              <>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input type="text" placeholder="Nombre" value={regNombre} onChange={e => setRegNombre(e.target.value)} style={modalInputStyle} required />
+                  <input type="text" placeholder="Apellidos" value={regApellidos} onChange={e => setRegApellidos(e.target.value)} style={modalInputStyle} required />
+                </div>
+                <input type="tel" placeholder="Teléfono" value={regTelefono} onChange={e => setRegTelefono(e.target.value)} style={modalInputStyle} required />
+              </>
+            )}
+
+            <input type="email" placeholder="Correo Electrónico" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} style={modalInputStyle} required />
+            <input type="password" placeholder="Contraseña" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} style={{ ...modalInputStyle, marginBottom: '22px' }} required />
+
+            <button type="submit" disabled={isAuthenticating} style={{ width: '100%', padding: '13px', backgroundColor: '#4799eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '15px', fontFamily: 'inherit', opacity: isAuthenticating ? 0.7 : 1 }}>
+              {isAuthenticating ? 'Procesando...' : (isLoginMode ? 'Entrar al Panel' : 'Registrarse')}
+            </button>
+
+            <div style={{ textAlign: 'center', color: '#475569', fontSize: '13px', marginTop: '18px' }}>
+              {isLoginMode ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+              <span onClick={() => setIsLoginMode(!isLoginMode)} style={{ color: '#4799eb', cursor: 'pointer', textDecoration: 'underline' }}>
+                {isLoginMode ? 'Regístrate aquí' : 'Inicia sesión'}
+              </span>
+            </div>
+          </form>
+        </div>
       </div>
     );
   }
@@ -424,14 +437,14 @@ export default function App() {
 
       {/* MODAL: AÑADIR NIÑO */}
       {showKidModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#212529', padding: '30px', borderRadius: '16px', width: '400px', border: '1px solid #495057', color: 'white' }}> 
-            <h3>Registrar Nuevo Niño</h3>
-            <input type="text" placeholder="Nombre" value={kidName} onChange={e => setKidName(e.target.value)} style={inputStyle} />
-            <input type="text" placeholder="Tag ID del dispositivo" value={deviceTag} onChange={e => setDeviceTag(e.target.value)} style={inputStyle} />
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#1a2332', padding: '32px', borderRadius: '16px', width: '400px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)', color: '#f1f5f9', border: '1px solid #1e293b' }}>
+            <h3 style={{ marginTop: 0, fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Registrar Nuevo Niño</h3>
+            <input type="text" placeholder="Nombre" value={kidName} onChange={e => setKidName(e.target.value)} style={modalInputStyle} />
+            <input type="text" placeholder="Tag ID del dispositivo" value={deviceTag} onChange={e => setDeviceTag(e.target.value)} style={{ ...modalInputStyle, marginBottom: '22px' }} />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setShowKidModal(false)} style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent' }}>Cancelar</button>
-              <button onClick={handleSaveKid} style={{ ...buttonStyle, margin: 0, backgroundColor: '#3b82f6' }}>Guardar</button>
+              <button onClick={() => setShowKidModal(false)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #1e293b', backgroundColor: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: '14px', fontWeight: '600', fontFamily: 'inherit' }}>Cancelar</button>
+              <button onClick={handleSaveKid} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#4799eb', color: '#fff', cursor: 'pointer', fontSize: '14px', fontWeight: '600', fontFamily: 'inherit' }}>Guardar</button>
             </div>
           </div>
         </div>
@@ -439,11 +452,11 @@ export default function App() {
 
       {/* MODAL: AÑADIR ZONA */}
       {showZoneModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#212529', padding: '30px', borderRadius: '16px', width: '700px', maxWidth: '95vw', border: '1px solid #495057', color: 'white', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            
-            <h3 style={{ margin: 0, fontSize: '18px' }}>🛑 Nueva Zona Restringida</h3>
-            <p style={{ margin: 0, color: '#adb5bd', fontSize: '14px' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#1a2332', padding: '30px', borderRadius: '16px', width: '700px', maxWidth: '95vw', border: '1px solid #1e293b', color: '#f1f5f9', display: 'flex', flexDirection: 'column', gap: '14px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Nueva Zona Restringida</h3>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
               Haz clic en el mapa para seleccionar el centro de la zona.
             </p>
 
@@ -491,46 +504,71 @@ export default function App() {
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '13px', color: '#adb5bd', display: 'block', marginBottom: '6px' }}>Nombre de la Zona</label>
-                <input type="text" placeholder="Ej: Colegio" value={nuevaZona.zone_name} onChange={e => setNuevaZona({...nuevaZona, zone_name: e.target.value})} style={inputStyle} />
-              </div>
-              <div>
-                <label style={{ fontSize: '13px', color: '#adb5bd', display: 'block', marginBottom: '6px' }}>Asignar a</label>
-                <select style={inputStyle} value={nuevaZona.tag_id} onChange={e => setNuevaZona({...nuevaZona, tag_id: e.target.value})}>
-                  {kids.length === 0 ? (
-                    <option value="" disabled>No hay niños</option>
-                  ) : (
-                    <>
-                      <option value="" disabled>Seleccionar...</option>
-                      {kids.map(k => <option key={k.tag_id} value={k.tag_id}>{k.name}</option>)}
-                    </>
-                  )}
-                </select>
-              </div>
+            {/* RADIO */}
+            <div>
+              <label style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '6px' }}>
+                Radio: <strong style={{ color: '#4799eb' }}>{nuevaZona.radius} m</strong>
+              </label>
+              <input
+                type="range" min="20" max="500" step="10"
+                value={nuevaZona.radius}
+                onChange={e => setNuevaZona(prev => ({ ...prev, radius: Number(e.target.value) }))}
+                style={{ width: '100%', accentColor: '#4799eb' }}
+              />
             </div>
+            <input
+              type="range"
+              min="20"
+              max="600"
+              step="10"
+              value={nuevaZona.radius}
+              onChange={e => setNuevaZona({...nuevaZona, radius: Number(e.target.value)})}
+              style={{ width: '100%', marginBottom: '20px', cursor: 'pointer' }}
+            />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div>
-                <label style={{ fontSize: '13px', color: '#adb5bd', display: 'block', marginBottom: '6px' }}>
-                  Radio: <strong style={{ color: 'white' }}>{nuevaZona.radius} m</strong>
-                </label>
-                <input type="range" min="20" max="600" step="10" value={nuevaZona.radius} onChange={e => setNuevaZona({...nuevaZona, radius: Number(e.target.value)})} style={{ width: '100%', accentColor: '#3b82f6', marginTop: '10px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '13px', color: '#adb5bd', display: 'block', marginBottom: '6px' }}>Tipo de Alerta</label>
-                <select style={inputStyle} value={nuevaZona.zone_type} onChange={e => setNuevaZona({...nuevaZona, zone_type: e.target.value})}>
-                  <option value="aviso">⚠️ Aviso Simple</option>
-                  <option value="emergencia">🚨 Emergencia</option>
-                  <option value="zona_segura">✅ Zona Segura</option>
-                </select>
-              </div>
-            </div>
+            <select style={modalInputStyle} value={nuevaZona.tag_id} onChange={e => setNuevaZona({...nuevaZona, tag_id: e.target.value})}>
+              {kids.length === 0 ? (
+                <option value="" disabled style={{ fontStyle: 'italic' }}>No hay niños registrados</option>
+              ) : (
+                <>
+                  <option value="" disabled>Asignar a un niño...</option>
+                  {kids.map(k => (
+                    <option key={k.tag_id} value={k.tag_id}>{k.name}</option>
+                  ))}
+                </>
+              )}
+            </select>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => { setShowZoneModal(false); setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" }); }} style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent' }}>Cancelar</button>
-              <button onClick={handleSaveZone} disabled={isSavingZone} style={{ ...buttonStyle, margin: 0, backgroundColor: '#10b981', border: '1px solid #059669', opacity: isSavingZone ? 0.6 : 1 }}>
+            <select style={modalInputStyle} value={nuevaZona.zone_type} onChange={e => setNuevaZona({...nuevaZona, zone_type: e.target.value})}>
+              <option value="aviso">⚠️ Aviso</option>
+              <option value="emergencia">🚨 Emergencia</option>
+              <option value="zona_segura">✅ Zona Segura</option>
+            </select>
+
+            <input
+              type="text"
+              placeholder="Nombre de la zona (Ej: Parque Central)"
+              value={nuevaZona.zone_name}
+              onChange={e => setNuevaZona({...nuevaZona, zone_name: e.target.value})}
+              style={{ ...modalInputStyle, marginBottom: 0 }}
+            />
+
+            {/* BOTONES */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+              <button
+                onClick={() => {
+                  setShowZoneModal(false);
+                  setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "" });
+                }}
+                style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #1e293b', backgroundColor: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: '14px', fontWeight: '600', fontFamily: 'inherit' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveZone}
+                disabled={isSavingZone}
+                style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#10b981', color: '#fff', cursor: 'pointer', fontSize: '14px', fontWeight: '600', fontFamily: 'inherit', opacity: isSavingZone ? 0.6 : 1 }}
+              >
                 {isSavingZone ? 'Guardando...' : '✅ Confirmar Zona'}
               </button>
             </div>
@@ -539,99 +577,201 @@ export default function App() {
         </div>
       )}
 
-      {/* SIDEBAR */}
-      <div style={sidebarStyle}>
-        <div style={{ marginBottom: '30px' }}>
-          <h2 style={{ color: '#f8f9fa', fontSize: '24px', margin: 0 }}>Panel Tracking</h2>
-          <span style={{ color: '#adb5bd', fontSize: '14px' }}>Usuario: {loggedUser.nombre}</span>
+      {/* --- TOP NAVIGATION BAR --- */}
+      <header style={{ zIndex: 50, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(17, 25, 33, 0.92)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #1e293b', padding: '10px 24px', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ backgroundColor: '#4799eb', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '24px', color: '#fff', display: 'block', lineHeight: 1 }}>family_restroom</span>
+          </div>
+          <h1 style={{ fontSize: '20px', fontWeight: '700', letterSpacing: '-0.025em', color: '#f1f5f9', margin: 0 }}>FamTrack</h1>
         </div>
-        
-        <button style={activeView === 'live' ? activeButtonStyle : buttonStyle} onClick={() => setActiveView('live')}>📍 En Vivo</button>
-        <button style={activeView === 'history' ? activeButtonStyle : buttonStyle} onClick={() => setActiveView('history')}>🕒 Historial</button>
-        {/* AÑADIDO BOTÓN NOTIFICACIONES */}
-        <button style={activeView === 'notifications' ? activeButtonStyle : buttonStyle} onClick={() => setActiveView('notifications')}>🔔 Notificaciones</button>
-
-        <hr style={{ border: 'none', borderTop: '1px solid #495057', margin: '15px 0' }} />
-        
-        {activeView === 'live' && (
-          <>
-            <button style={buttonStyle} onClick={() => setShowKidModal(true)}>👶 Añadir Niño</button>
-            <button style={buttonStyle} onClick={() => setShowZoneModal(true)}>🛑 Añadir Zona</button>
-          </>
-        )}
-
-        {activeView === 'history' && (
-          <div>
-            <input type="date" value={historyDate} onChange={e => setHistoryDate(e.target.value)} style={dateInputStyle} />
-            <div style={{ display: 'flex', gap: '5px' }}>
-              <input type="time" value={historyStartTime} onChange={e => setHistoryStartTime(e.target.value)} style={dateInputStyle} />
-              <input type="time" value={historyEndTime} onChange={e => setHistoryEndTime(e.target.value)} style={dateInputStyle} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button style={{ position: 'relative', padding: '8px', borderRadius: '50%', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="material-symbols-outlined" style={{ color: '#94a3b8', fontSize: '22px', display: 'block', lineHeight: 1 }}>notifications</span>
+            <span style={{ position: 'absolute', top: '8px', right: '8px', width: '8px', height: '8px', backgroundColor: '#ef4444', borderRadius: '50%', border: '2px solid #111921' }}></span>
+          </button>
+          <div style={{ height: '28px', width: '1px', backgroundColor: '#1e293b' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: '14px', fontWeight: '600', margin: 0, color: '#f1f5f9', lineHeight: 1 }}>{loggedUser.nombre}</p>
+              <p style={{ fontSize: '12px', color: '#475569', margin: '4px 0 0 0' }}>FamTrack</p>
             </div>
-            <button onClick={handleSearchHistory} disabled={isLoadingHistory} style={{ ...buttonStyle, width: '100%', backgroundColor: '#10b981', textAlign: 'center' }}>
-              {isLoadingHistory ? '...' : '🔍 Buscar'}
+          </div>
+        </div>
+      </header>
+
+      {/* --- CONTENT AREA --- */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+        {/* --- LEFT SIDEBAR --- */}
+        <aside style={{ width: '210px', flexShrink: 0, display: 'flex', flexDirection: 'column', padding: '16px 12px', gap: '4px', backgroundColor: '#111921', borderRight: '1px solid #1e293b', zIndex: 40, overflowY: 'auto' }}>
+
+          {/* En Vivo */}
+          <button
+            style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: activeView === 'live' ? 'rgba(71, 153, 235, 0.12)' : 'transparent', padding: '12px 14px', borderRadius: '12px', border: activeView === 'live' ? '1px solid rgba(71, 153, 235, 0.3)' : '1px solid transparent', cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'inherit' }}
+            onClick={() => setActiveView('live')}
+          >
+            <span className="material-symbols-outlined" style={{ color: activeView === 'live' ? '#4799eb' : '#475569', fontSize: '22px', flexShrink: 0 }}>my_location</span>
+            <div>
+              <p style={{ fontSize: '10px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0, lineHeight: 1 }}>Tracking</p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: activeView === 'live' ? '#4799eb' : '#f1f5f9', margin: '3px 0 0 0' }}>En Vivo</p>
+            </div>
+          </button>
+
+          {/* Historial */}
+          <button
+            style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: activeView === 'history' ? 'rgba(249, 115, 22, 0.12)' : 'transparent', padding: '12px 14px', borderRadius: '12px', border: activeView === 'history' ? '1px solid rgba(249, 115, 22, 0.3)' : '1px solid transparent', cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'inherit' }}
+            onClick={() => setActiveView(activeView === 'history' ? 'live' : 'history')}
+          >
+            <span className="material-symbols-outlined" style={{ color: activeView === 'history' ? '#f97316' : '#475569', fontSize: '22px', flexShrink: 0 }}>history</span>
+            <div>
+              <p style={{ fontSize: '10px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0, lineHeight: 1 }}>Rutas</p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: activeView === 'history' ? '#f97316' : '#f1f5f9', margin: '3px 0 0 0' }}>Historial</p>
+            </div>
+          </button>
+
+          {/* History controls — inline when active */}
+          {activeView === 'history' && (
+            <div style={{ padding: '12px', backgroundColor: '#0f1923', borderRadius: '12px', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: '8px', margin: '2px 0' }}>
+              <input type="date" value={historyDate} onChange={e => setHistoryDate(e.target.value)} style={{ ...modalInputStyle, marginBottom: 0 }} />
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input type="time" value={historyStartTime} onChange={e => setHistoryStartTime(e.target.value)} style={{ ...modalInputStyle, marginBottom: 0, flex: 1 }} />
+                <input type="time" value={historyEndTime} onChange={e => setHistoryEndTime(e.target.value)} style={{ ...modalInputStyle, marginBottom: 0, flex: 1 }} />
+              </div>
+              <button onClick={handleSearchHistory} disabled={isLoadingHistory} style={{ padding: '9px', borderRadius: '8px', border: 'none', backgroundColor: '#10b981', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '700', fontFamily: 'inherit', opacity: isLoadingHistory ? 0.6 : 1 }}>
+                {isLoadingHistory ? 'Cargando...' : 'Buscar ruta'}
+              </button>
+            </div>
+          )}
+
+          <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '8px 0' }}></div>
+
+          {/* Añadir Niño */}
+          <button style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'transparent', padding: '12px 14px', borderRadius: '12px', border: '1px solid transparent', cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'inherit' }} onClick={() => setShowKidModal(true)}>
+            <span className="material-symbols-outlined" style={{ color: '#4799eb', fontSize: '22px', flexShrink: 0 }}>group</span>
+            <div>
+              <p style={{ fontSize: '10px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0, lineHeight: 1 }}>Familia</p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9', margin: '3px 0 0 0' }}>Añadir Niño</p>
+            </div>
+          </button>
+
+          {/* Geocercas */}
+          <button style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'transparent', padding: '12px 14px', borderRadius: '12px', border: '1px solid transparent', cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'inherit' }} onClick={() => setShowZoneModal(true)}>
+            <span className="material-symbols-outlined" style={{ color: '#22c55e', fontSize: '22px', flexShrink: 0 }}>security</span>
+            <div>
+              <p style={{ fontSize: '10px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0, lineHeight: 1 }}>Seguridad</p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9', margin: '3px 0 0 0' }}>Geocercas</p>
+            </div>
+          </button>
+
+          {/* Alertas */}
+          <button style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'transparent', padding: '12px 14px', borderRadius: '12px', border: '1px solid transparent', cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'inherit' }}>
+            <span className="material-symbols-outlined" style={{ color: '#ef4444', fontSize: '22px', flexShrink: 0 }}>warning</span>
+            <div>
+              <p style={{ fontSize: '10px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0, lineHeight: 1 }}>S.O.S</p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9', margin: '3px 0 0 0' }}>Alertas</p>
+            </div>
+          </button>
+
+          {/* Logout */}
+          <div style={{ marginTop: 'auto' }}>
+            <button style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', color: '#475569', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', width: '100%', fontFamily: 'inherit' }} onClick={() => setLoggedUser(null)}>
+              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>logout</span>
+              <span style={{ fontSize: '14px', fontWeight: '600' }}>Salir</span>
             </button>
           </div>
-        )}
-        
-        <button style={{ ...buttonStyle, marginTop: 'auto', backgroundColor: '#dc2626' }} onClick={() => setLoggedUser(null)}>🚪 Salir</button>
-      </div>
+        </aside>
 
-      {/* ÁREA PRINCIPAL (MAPA O LISTA DE NOTIFICACIONES) */}
-      <div style={mapWrapperStyle}>
-        
-        {activeView === 'notifications' ? (
-          // VISTA DE NOTIFICACIONES
-          <div style={{ padding: '30px', color: 'white', height: '100%', overflowY: 'auto', boxSizing: 'border-box' }}>
-            <h2 style={{ marginTop: 0, marginBottom: '20px', borderBottom: '1px solid #495057', paddingBottom: '15px' }}>Historial de Alertas</h2>
-            
-            {notificationsList.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#adb5bd', marginTop: '40px' }}>
-                <span style={{ fontSize: '40px', display: 'block', marginBottom: '10px' }}>📭</span>
-                No hay notificaciones registradas.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {notificationsList.map(notif => (
-                  <div key={notif.id} style={{ backgroundColor: '#212529', borderLeft: '4px solid #ef4444', padding: '15px 20px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h4 style={{ margin: '0 0 5px 0', color: '#f8f9fa' }}>Alerta de Zona: {notif.zone_name}</h4>
-                      <p style={{ margin: 0, color: '#adb5bd', fontSize: '14px' }}>El dispositivo <strong>{notif.kid_name}</strong> ha entrado en una zona restringida.</p>
-                    </div>
-                    <div style={{ color: '#adb5bd', fontSize: '13px', textAlign: 'right' }}>
-                      {formatTime(notif.timestamp)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          // VISTA DE MAPA (En Vivo o Historial)
-          <>
-            <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10, display: 'flex', gap: '10px' }}>
-              {kids.map(kid => (
-                <button
-                  key={kid.tag_id}
-                  onClick={() => setSelectedKidTag(kid.tag_id)}
-                  style={{ padding: '10px 20px', borderRadius: '25px', border: 'none', backgroundColor: selectedKidTag === kid.tag_id ? '#3b82f6' : '#212529', color: 'white', cursor: 'pointer' }}
-                >
-                  {kid.name}
-                </button>
-              ))}
-            </div>
-            <div style={{ position: 'absolute', bottom: '30px', right: '30px', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <button style={zoomButtonStyle} onClick={handleZoomIn}>+</button>
-              <button style={zoomButtonStyle} onClick={handleZoomOut}>-</button>
-            </div>
+        {/* --- MAP AREA --- */}
+        <main style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+
+          {/* Map fills the entire area */}
+          <div style={{ position: 'absolute', inset: 0, backgroundColor: '#0f1923' }}>
             {mapReady && (
               <DeckGL viewState={viewState} onViewStateChange={e => setViewState(e.viewState)} controller={true} layers={mainLayers}>
                 <Map mapboxAccessToken={MAPBOX_TOKEN} mapStyle="mapbox://styles/mapbox/dark-v11" />
               </DeckGL>
             )}
-          </>
-        )}
-      </div>
+          </div>
 
+          {/* Kid selector pills */}
+          <div style={{ position: 'absolute', top: '24px', left: '24px', right: '24px', display: 'flex', flexWrap: 'wrap', gap: '10px', zIndex: 10 }}>
+            {kids.map(kid => (
+              <button
+                key={kid.tag_id}
+                onClick={() => setSelectedKidTag(kid.tag_id)}
+                style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', borderRadius: '9999px', border: 'none', fontWeight: '700', cursor: 'pointer', backgroundColor: selectedKidTag === kid.tag_id ? '#4799eb' : 'rgba(17, 25, 33, 0.92)', color: selectedKidTag === kid.tag_id ? '#fff' : '#94a3b8', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', fontSize: '14px', fontFamily: 'inherit' }}
+              >
+                {kid.name}
+              </button>
+            ))}
+            {kids.length === 0 && (
+              <div style={{ padding: '10px 20px', borderRadius: '9999px', backgroundColor: 'rgba(17, 25, 33, 0.92)', color: '#475569', fontSize: '14px', border: '1px dashed #1e293b' }}>
+                Añade un niño para empezar
+              </div>
+            )}
+          </div>
+
+          {/* Map Controls (zoom) */}
+          <div style={{ position: 'absolute', right: '24px', bottom: '130px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10 }}>
+            <button onClick={handleZoomIn} style={{ width: '44px', height: '44px', backgroundColor: 'rgba(17, 25, 33, 0.92)', color: '#f1f5f9', border: '1px solid #1e293b', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="material-symbols-outlined">add</span>
+            </button>
+            <button onClick={handleZoomOut} style={{ width: '44px', height: '44px', backgroundColor: 'rgba(17, 25, 33, 0.92)', color: '#f1f5f9', border: '1px solid #1e293b', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="material-symbols-outlined">remove</span>
+            </button>
+            <button style={{ marginTop: '8px', width: '44px', height: '44px', backgroundColor: '#4799eb', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(71, 153, 235, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="material-symbols-outlined">my_location</span>
+            </button>
+          </div>
+
+          {/* Bottom Family Status Bar */}
+          <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', width: 'calc(100% - 48px)', maxWidth: '640px', zIndex: 10 }}>
+            <div style={{ backgroundColor: 'rgba(17, 25, 33, 0.94)', backdropFilter: 'blur(12px)', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', padding: '16px', border: '1px solid rgba(30, 41, 59, 0.6)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', padding: '0 4px' }}>
+                <h3 style={{ fontWeight: '700', fontSize: '11px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.12em', margin: 0 }}>Estado de la familia</h3>
+                <span style={{ fontSize: '11px', fontWeight: '500', backgroundColor: activeView === 'history' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(34, 197, 94, 0.15)', color: activeView === 'history' ? '#fb923c' : '#4ade80', padding: '4px 10px', borderRadius: '9999px' }}>
+                  {activeView === 'history' ? 'Historial' : (kids.length > 0 ? 'En Vivo' : 'Sin niños')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
+                {kids.length === 0 ? (
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#0f1923', padding: '12px', borderRadius: '12px', minWidth: '200px', border: '1px solid #1e293b' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#1a2332', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span className="material-symbols-outlined" style={{ color: '#475569', fontSize: '20px' }}>person_add</span>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#475569', margin: 0 }}>Sin niños</p>
+                      <p style={{ fontSize: '11px', color: '#334155', margin: '3px 0 0 0' }}>Añade un niño para empezar</p>
+                    </div>
+                  </div>
+                ) : (
+                  kids.map(kid => (
+                    <div key={kid.tag_id} onClick={() => setSelectedKidTag(kid.tag_id)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: selectedKidTag === kid.tag_id ? 'rgba(71, 153, 235, 0.12)' : '#0f1923', padding: '12px', borderRadius: '12px', minWidth: '200px', border: `1px solid ${selectedKidTag === kid.tag_id ? 'rgba(71, 153, 235, 0.35)' : '#1e293b'}`, cursor: 'pointer' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#1a2332', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span className="material-symbols-outlined" style={{ color: '#4799eb', fontSize: '20px' }}>child_care</span>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9', margin: 0 }}>{kid.name}</p>
+                        <p style={{ fontSize: '11px', color: '#64748b', margin: '3px 0 0 0' }}>Tag ID: {kid.tag_id}</p>
+                      </div>
+                      <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span className="material-symbols-outlined" style={{ color: activeView === 'live' ? '#4ade80' : '#fb923c', fontSize: '14px' }}>
+                          {activeView === 'live' ? 'wifi' : 'history'}
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: '700', color: activeView === 'live' ? '#4ade80' : '#fb923c' }}>
+                          {activeView === 'live' ? 'Live' : 'Hist.'}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+        </main>
+      </div>
     </div>
   );
 }
