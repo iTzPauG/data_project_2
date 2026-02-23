@@ -1,21 +1,17 @@
-"""FastAPI REST API for Location & Zone Ingestion + Persistence."""
+"""FastAPI REST API for Location & Zone Ingestion."""
 
 import json
 import os
 from datetime import datetime
 from typing import Optional, Union, List
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import pubsub_v1
 from pydantic import BaseModel, field_validator
-
-# --- NUEVO: IMPORTS DE BASE DE DATOS ---
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import create_engine, Column, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-
-from fastapi import Response
 
 app = FastAPI(title="Location & Zone Ingestion API")
 
@@ -26,7 +22,6 @@ async def options_handler(path: str, response: Response):
     response.headers["Access-Control-Allow-Headers"] = "*"
     return {}
 
-# --- CORS (Permitir conexión desde React) ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,26 +29,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CONFIGURACIÓN GOOGLE CLOUD ---
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 PUBSUB_LOCATION_TOPIC = os.environ.get("PUBSUB_LOCATION_TOPIC", "incoming-location-data")
 PUBSUB_ZONE_TOPIC = os.environ.get("PUBSUB_ZONE_TOPIC", "zone-data")
 PUBSUB_USER_TOPIC = os.environ.get("PUBSUB_USER_TOPIC", "user-data")
 PUBSUB_KIDS_TOPIC = os.environ.get("PUBSUB_KIDS_TOPIC", "kids-data")
 
-# --- CONFIGURACIÓN BASE DE DATOS ---
-# Usamos SQLite en local para que no te falle si no tienes Cloud SQL Proxy activo
-# En Cloud Run, esta variable vendrá configurada para PostgreSQL
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./local_zones.db")
-
-# Ajuste necesario para SQLite
 connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- MODELO DB (La tabla que guardará las zonas) ---
+
 class ZoneDB(Base):
     __tablename__ = "zones"
     tag_id = Column(String, primary_key=True)
@@ -62,10 +51,9 @@ class ZoneDB(Base):
     radius = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
 
-# Crea la tabla automáticamente si no existe
 Base.metadata.create_all(bind=engine)
 
-# Dependencia para obtener la DB
+
 def get_db():
     db = SessionLocal()
     try:
@@ -73,15 +61,16 @@ def get_db():
     finally:
         db.close()
 
-# --- CLIENTE PUBSUB ---
+
 _publisher = None
+
 def get_publisher():
     global _publisher
     if _publisher is None:
         _publisher = pubsub_v1.PublisherClient()
     return _publisher
 
-# --- WEBSOCKETS (Se mantienen por si acaso, aunque uses Firestore) ---
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -102,7 +91,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# --- MODELOS PYDANTIC (Validación) ---
+
 class LocationRequest(BaseModel):
     tag_id: Union[str, int]
     latitude: float
@@ -117,7 +106,6 @@ class ZoneRequest(BaseModel):
     timestamp: Optional[str] = None
     node_id: Optional[str] = None
 
-# --- ENDPOINTS ---
     @field_validator("latitude")
     @classmethod
     def validate_latitude(cls, v):
@@ -156,9 +144,6 @@ class KidRequest(BaseModel):
     user_id: Union[str, int]
 
 
-# --- Endpoints ---
-
-# 1. PUBLICAR UBICACIÓN (Sigue siendo vital para enviar datos a Dataflow)
 @app.post("/location")
 async def publish_location(data: LocationRequest):
     message_dict = {
@@ -168,24 +153,19 @@ async def publish_location(data: LocationRequest):
         "timestamp": data.timestamp or datetime.now().isoformat(),
     }
 
-    # A) ENVIAR A PUB/SUB (Para Dataflow -> Firestore)
     if GCP_PROJECT_ID:
         try:
             topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_LOCATION_TOPIC)
             get_publisher().publish(topic_path, json.dumps(message_dict).encode("utf-8"))
         except Exception as e:
             print(f"Error PubSub Location: {e}")
-    
-    # B) WEBSOCKET (Opcional, ya que el frontend lee de Firestore)
-    await manager.broadcast(message_dict)
 
+    await manager.broadcast(message_dict)
     return {"status": "published"}
 
-# 2. CREAR ZONA (Admin) - AHORA GUARDA EN BD + PUBSUB
+
 @app.post("/zone")
 async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
-    
-    # A) Guardar en Base de Datos (Cloud SQL / SQLite)
     try:
         db_zone = ZoneDB(
             tag_id=str(zone.tag_id),
@@ -196,12 +176,11 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         )
         db.add(db_zone)
         db.commit()
-        db.refresh(db_zone) # Obtenemos el ID generado
+        db.refresh(db_zone)
     except Exception as e:
         print(f"Error BD: {e}")
         raise HTTPException(status_code=500, detail="Error guardando en base de datos")
 
-    # B) Enviar a Pub/Sub (Para que Dataflow se entere)
     message_dict = {
         "id": db_zone.id,
         "tag_id": str(zone.tag_id),
@@ -220,22 +199,22 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
 
     return {"status": "ok", "db_id": db_zone.id}
 
-# 3. LEER ZONAS (NUEVO - Esto es lo que busca tu Frontend)
+
 @app.get("/zones")
 def get_zones(db: Session = Depends(get_db)):
     zones = db.query(ZoneDB).all()
     return [
         {
-            "id": f"{z.tag_id}-{z.timestamp}", # Generamos un ID inventado para que React sea feliz
-            "latitude": z.latitude, 
-            "longitude": z.longitude, 
+            "id": f"{z.tag_id}-{z.timestamp}",
+            "latitude": z.latitude,
+            "longitude": z.longitude,
             "radius": z.radius,
             "tag_id": z.tag_id
-        } 
+        }
         for z in zones
     ]
 
-# 4. WebSocket (Legacy)
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)

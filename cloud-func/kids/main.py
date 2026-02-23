@@ -2,7 +2,7 @@ import os
 import psycopg2
 import json
 import base64
-from google.cloud import secretmanager
+
 
 def kids_data_to_sql(event, context):
     # Cloud SQL connection details (use env vars or Secret Manager for prod)
@@ -11,7 +11,6 @@ def kids_data_to_sql(event, context):
     db_name = os.environ.get("DB_NAME", "appdb")
     db_host = os.environ.get("DB_HOST", "/cloudsql/main-cloudsql-instance")
 
-    # Ensure kids table exists
     try:
         conn = psycopg2.connect(
             dbname=db_name,
@@ -36,7 +35,6 @@ def kids_data_to_sql(event, context):
     except Exception as e:
         print(f"Error creating table tags: {e}")
 
-    # Decode Pub/Sub message (nativo)
     try:
         if 'data' in event:
             pubsub_message = base64.b64decode(event['data']).decode('utf-8')
@@ -56,7 +54,6 @@ def kids_data_to_sql(event, context):
         print(f"Error decoding message: {e}")
         return
 
-    # Insert into Cloud SQL
     try:
         conn = psycopg2.connect(
             dbname=db_name,
