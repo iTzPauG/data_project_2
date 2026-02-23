@@ -63,8 +63,12 @@ class ZoneDB(Base):
     radius = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
 
-# Crea la tabla automáticamente si no existe
-Base.metadata.create_all(bind=engine)
+@app.on_event("startup")
+def create_tables():
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Warning: Could not create tables at startup: {e}")
 
 # Dependencia para obtener la DB
 def get_db():

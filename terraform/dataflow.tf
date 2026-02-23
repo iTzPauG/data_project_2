@@ -134,12 +134,15 @@ resource "google_dataflow_flex_template_job" "location_pipeline" {
     project_id                 = var.gcp_project_id
     firestore_database         = var.firestore_database_name
     firestore_collection       = var.firestore_locations_collection
+    zones_sql                  = var.firestore_locations_collection
     db_host                    = google_sql_database_instance.main.public_ip_address
     db_name                    = var.cloudsql_db_name
     db_user                    = var.cloudsql_user
     db_pass                    = random_password.cloudsql_password.result
     bq_dataset                 = google_bigquery_dataset.bqdataset.dataset_id
     bq_table                   = google_bigquery_table.table.table_id
+    temp_location              = "gs://${google_storage_bucket.dataflow_temp.name}/tmp"
+    staging_location           = "gs://${google_storage_bucket.dataflow_bucket.name}/staging"
   }
 
   depends_on = [
