@@ -245,10 +245,6 @@ resource "google_sql_database_instance" "main" {
     }
     ip_configuration {
       ipv4_enabled = true
-      authorized_networks {
-        name  = "all"
-        value = "0.0.0.0/0"
-      }
     }
     user_labels = {
       environment = var.environment
