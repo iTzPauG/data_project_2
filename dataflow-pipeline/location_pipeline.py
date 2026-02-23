@@ -280,6 +280,41 @@ class SaveLastLocationToFirestoreFn(beam.DoFn):
             logging.getLogger(__name__).info("Firestore connection closed")
 
 
+class SaveNotificationToFirestoreFn(beam.DoFn):
+    """Save last zone violation notification per user to Firestore (overwrites previous)."""
+
+    def __init__(self, project: str, database: str, collection: str):
+        self.project = project
+        self.database = database
+        self.collection = collection
+        self._db = None
+
+    def setup(self):
+        from google.cloud import firestore
+        self._db = firestore.Client(project=self.project, database=self.database)
+
+    def process(self, notification_json: str):
+        try:
+            notification = json.loads(notification_json)
+            notification['updated_at'] = datetime.now().isoformat()
+
+            # Use tag_id as document ID so only the last notification per user is kept
+            tag_id = notification.get('tag_id')
+            doc_ref = self._db.collection(self.collection).document(tag_id)
+            doc_ref.set(notification)
+
+            logging.getLogger(__name__).info(
+                f"Saved last notification for tag {tag_id}"
+            )
+            yield notification_json
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Error saving notification to Firestore: {e}")
+
+    def teardown(self):
+        if self._db:
+            logging.getLogger(__name__).info("Firestore notifications connection closed")
+
+
 def run(argv=None):
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--db_user', required=True, help='Cloud SQL user')
@@ -291,6 +326,8 @@ def run(argv=None):
     parser.add_argument('--project_id', required=True, help='GCP project ID')
     parser.add_argument('--firestore_database', required=True)
     parser.add_argument('--firestore_collection', required=True)
+    parser.add_argument('--firestore_notifications_collection', default='notifications',
+                        help='Firestore collection for notifications')
     parser.add_argument('--zones_sql', default='zones', help='CloudSQL table name for zones')
     parser.add_argument('--bq_dataset', required=True, help='BigQuery dataset ID')
     parser.add_argument('--bq_table', required=True, help='BigQuery table name')
@@ -357,7 +394,19 @@ def run(argv=None):
         )
     )
 
-    # 3b. Save notifications to BigQuery
+    # 3b. Save notifications to Firestore
+    (
+        notifications
+        | 'Save Notification to Firestore' >> beam.ParDo(
+            SaveNotificationToFirestoreFn(
+                project=known_args.project_id,
+                database=known_args.firestore_database,
+                collection=known_args.firestore_notifications_collection
+            )
+        )
+    )
+
+    # 3c. Save notifications to BigQuery
     (
         notifications
         | 'Parse Notification JSON' >> beam.Map(lambda x: json.loads(x))
