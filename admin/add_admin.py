@@ -1,9 +1,6 @@
 """
 CLI script to add an admin user to Cloud SQL.
 
-Usage:
-    python add_admin.py
-
 Set env vars before running:
     export DB_HOST=<cloud-sql-public-ip>
     export DB_USER=<db-user>

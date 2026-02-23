@@ -1,8 +1,5 @@
-# =============================================================================
-# ADMIN PANEL
-# =============================================================================
+# Admin Panel
 
-# Service account for admin panel Cloud Run
 resource "google_service_account" "admin_panel_sa" {
   account_id   = "admin-panel"
   display_name = "Admin Panel Service Account"

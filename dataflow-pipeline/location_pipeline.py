@@ -249,6 +249,7 @@ def run(argv=None):
     parser.add_argument('--zones_sql', default='zones', help='CloudSQL table name for zones')
     parser.add_argument('--bq_dataset', required=True, help='BigQuery dataset ID')
     parser.add_argument('--bq_table', required=True, help='BigQuery table name')
+    parser.add_argument('--bq_notifications_table', default='notifications', help='BigQuery table name for notifications')
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
@@ -290,7 +291,7 @@ def run(argv=None):
     )
 
     # 3. Branch B: Check zone match and publish violations only
-    (
+    notifications = (
         locations
         | 'Check Zone Match' >> beam.ParDo(
             CheckZoneMatchFn(
@@ -301,8 +302,25 @@ def run(argv=None):
                 zones_table=known_args.zones_sql
             )
         )
+    )
+
+    # 3a. Publish notifications to Pub/Sub
+    (
+        notifications
         | 'Publish Violation Notifications' >> WriteStringsToPubSub(
             topic=known_args.output_notifications_topic
+        )
+    )
+
+    # 3b. Save notifications to BigQuery
+    (
+        notifications
+        | 'Parse Notification JSON' >> beam.Map(lambda x: json.loads(x))
+        | 'Write Notifications to BigQuery' >> WriteToBigQuery(
+            table=f"{known_args.project_id}:{known_args.bq_dataset}.{known_args.bq_notifications_table}",
+            schema='message:STRING,tag_id:STRING,zone_id:STRING,latitude:FLOAT,longitude:FLOAT,timestamp:TIMESTAMP,zone_radius:FLOAT,distance_meters:FLOAT',
+            write_disposition=BigQueryDisposition.WRITE_APPEND,
+            create_disposition=BigQueryDisposition.CREATE_NEVER
         )
     )
 

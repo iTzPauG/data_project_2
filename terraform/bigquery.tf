@@ -21,3 +21,22 @@ resource "google_bigquery_table" "table" {
 ]
 EOF
 }
+
+# Tabla para almacenar notificaciones de zona
+resource "google_bigquery_table" "notifications" {
+  dataset_id = google_bigquery_dataset.bqdataset.dataset_id
+  table_id   = "notifications"
+
+  schema = <<EOF
+[
+	{"name": "message", "type": "STRING", "mode": "REQUIRED"},
+	{"name": "tag_id", "type": "STRING", "mode": "REQUIRED"},
+	{"name": "zone_id", "type": "STRING", "mode": "REQUIRED"},
+	{"name": "latitude", "type": "FLOAT", "mode": "REQUIRED"},
+	{"name": "longitude", "type": "FLOAT", "mode": "REQUIRED"},
+	{"name": "timestamp", "type": "TIMESTAMP", "mode": "REQUIRED"},
+	{"name": "zone_radius", "type": "FLOAT", "mode": "REQUIRED"},
+	{"name": "distance_meters", "type": "FLOAT", "mode": "REQUIRED"}
+]
+EOF
+}

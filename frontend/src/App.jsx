@@ -9,7 +9,6 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase"; 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-// --- 1. CONFIGURACIÓN ---
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const API_URL = import.meta.env.VITE_API_URL;
 const TARGET_USER_ID = "94"; // ID del padre
@@ -18,31 +17,22 @@ const COLLECTION_NAME = "locations";
 const INITIAL_VIEW_STATE = { longitude: -0.376288, latitude: 39.469907, zoom: 14, pitch: 45, bearing: 0 };
 
 export default function App() {
-  // --- 2. ESTADOS ---
   const [mapReady, setMapReady] = useState(false);
-  
-  // Estado Niños
   const [kids, setKids] = useState([]); 
-  const [selectedKidTag, setSelectedKidTag] = useState(null); 
-
-  // Estados Datos y Cámara
+  const [selectedKidTag, setSelectedKidTag] = useState(null);
   const [ubicacionUsuario, setUbicacionUsuario] = useState(null);
   const [zonasSQL, setZonasSQL] = useState([]);
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
   const [haCentradoInicial, setHaCentradoInicial] = useState(false);
 
-  // Estados Pop-Up Añadir Niño
   const [showKidModal, setShowKidModal] = useState(false);
   const [kidName, setKidName] = useState("");
-  const [deviceTag, setDeviceTag] = useState(""); 
+  const [deviceTag, setDeviceTag] = useState("");
 
-  // Estados Pop-Up Añadir Zona (Mini-Mapa)
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [miniMapViewState, setMiniMapViewState] = useState(INITIAL_VIEW_STATE);
-  // MODIFICADO: Radio por defecto a 50 metros
   const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "" });
 
-  // --- 3. EFECTOS ---
   useEffect(() => {
     const timer = setTimeout(() => setMapReady(true), 150);
     return () => clearTimeout(timer);
@@ -80,8 +70,6 @@ export default function App() {
 
     return () => unsubscribe();
   }, [selectedKidTag, haCentradoInicial]);
-
-  // --- 4. MANEJADORES ---
 
   const handleSaveKid = async () => {
     if (!kidName.trim() || !deviceTag.trim()) return;
@@ -126,7 +114,6 @@ export default function App() {
     }
   };
 
-  // --- 5. CAPAS MAPA PRINCIPAL ---
   const zonasFiltradas = zonasSQL.filter(z => String(z.tag_id) === String(selectedKidTag));
 
   const mainLayers = [
@@ -144,7 +131,6 @@ export default function App() {
     })
   ].filter(Boolean);
 
-  // --- 6. ESTILOS ---
   const appContainerStyle = { display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#212529', overflow: 'hidden' };
   const sidebarStyle = { width: '320px', display: 'flex', flexDirection: 'column', padding: '30px 20px', boxSizing: 'border-box' };
   const mapWrapperStyle = { flex: 1, position: 'relative', margin: '20px 20px 20px 0', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', backgroundColor: '#343a40' };
@@ -157,7 +143,6 @@ export default function App() {
   return (
     <div style={appContainerStyle}>
       
-      {/* --- POP-UP AÑADIR NIÑO --- */}
       {showKidModal && (
         <div style={modalOverlayStyle}>
           <div style={{...modalContentStyle, width: '400px'}}> 
@@ -172,7 +157,6 @@ export default function App() {
         </div>
       )}
 
-      {/* --- POP-UP AÑADIR ZONA --- */}
       {showZoneModal && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
@@ -203,7 +187,6 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '14px' }}>
               <span>Radio: <strong style={{ color: '#10b981' }}>{nuevaZona.radius}m</strong></span>
             </div>
-            {/* MODIFICADO: Rango de 20 a 200 con saltos de 10 */}
             <input 
               type="range" 
               min="20" 
@@ -235,7 +218,6 @@ export default function App() {
         </div>
       )}
 
-      {/* --- BARRA LATERAL (SIDEBAR) --- */}
       <div style={sidebarStyle}>
         <h2 style={{ margin: '0 0 30px 0', color: '#f8f9fa', fontSize: '24px' }}>Panel de Control</h2>
         <button style={buttonStyle} onMouseEnter={e => e.target.style.backgroundColor = '#495057'} onMouseLeave={e => e.target.style.backgroundColor = '#343a40'}>👤 Mi Perfil</button>
@@ -244,7 +226,6 @@ export default function App() {
         <button style={buttonStyle} onMouseEnter={e => e.target.style.backgroundColor = '#495057'} onMouseLeave={e => e.target.style.backgroundColor = '#343a40'} onClick={() => setShowZoneModal(true)}>🛑 Añadir Ubicación Restringida</button>
       </div>
 
-      {/* --- CONTENEDOR DEL MAPA PRINCIPAL --- */}
       <div style={mapWrapperStyle}>
         <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10, display: 'flex', gap: '10px' }}>
           {kids.map(kid => (
