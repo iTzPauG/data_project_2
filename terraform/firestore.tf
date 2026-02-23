@@ -24,8 +24,9 @@ output "firestore_database" {
 output "firestore_collections" {
   description = "Firestore collection names (created automatically)"
   value = {
-    locations  = var.firestore_locations_collection
-    metadata   = var.firestore_metadata_collection
+    locations     = var.firestore_locations_collection
+    metadata      = var.firestore_metadata_collection
+    notifications = var.firestore_notifications_collection
   }
 }
 

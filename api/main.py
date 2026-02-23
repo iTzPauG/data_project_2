@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, Union, List
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import pubsub_v1
 from google.cloud import bigquery
@@ -39,7 +39,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-from fastapi import Response
 
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 PUBSUB_LOCATION_TOPIC = os.environ.get("PUBSUB_LOCATION_TOPIC", "incoming-location-data")

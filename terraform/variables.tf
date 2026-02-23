@@ -71,6 +71,12 @@ variable "firestore_metadata_collection" {
   default     = "metadata"
 }
 
+variable "firestore_notifications_collection" {
+  description = "Firestore collection for notifications"
+  type        = string
+  default     = "notifications"
+}
+
 variable "zones_sql_table" {
   description = "Cloud SQL table name for zones"
   type        = string
