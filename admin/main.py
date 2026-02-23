@@ -83,7 +83,7 @@ _bq_client: Optional[bigquery.Client] = None
 def get_firestore() -> gcp_firestore.Client:
     global _firestore_client
     if _firestore_client is None:
-        _firestore_client = gcp_firestore.Client(database=FIRESTORE_DATABASE)
+        _firestore_client = gcp_firestore.Client(project=BQ_PROJECT, database=FIRESTORE_DATABASE)
     return _firestore_client
 
 
@@ -148,7 +148,7 @@ def _collect_stats() -> dict:
     users_with_zones = 0
     user_count = 0
     kid_count = 0
-    new_users_week = 0
+    new_users_24h = new_users_7d = new_users_30d = 0
     users_no_zones = 0
     unprotected_users = 0
     zones_by_user: dict = {}
@@ -172,10 +172,16 @@ def _collect_stats() -> dict:
             cur.execute("SELECT COUNT(*) FROM tags")
             kid_count = cur.fetchone()[0]
 
-            cur.execute(
-                "SELECT COUNT(*) FROM users WHERE timestamp > NOW() - INTERVAL '7 days'"
-            )
-            new_users_week = cur.fetchone()[0]
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE timestamp > NOW() - INTERVAL '1 day')   AS d1,
+                    COUNT(*) FILTER (WHERE timestamp > NOW() - INTERVAL '7 days')  AS d7,
+                    COUNT(*) FILTER (WHERE timestamp > NOW() - INTERVAL '30 days') AS d30
+                FROM users
+                WHERE timestamp > NOW() - INTERVAL '30 days'
+            """)
+            row = cur.fetchone()
+            new_users_24h, new_users_7d, new_users_30d = row[0], row[1], row[2]
 
             cur.execute("""
                 SELECT COUNT(*) FROM users
@@ -248,31 +254,33 @@ def _collect_stats() -> dict:
         print(f"[ADMIN] Firestore error: {e}")
 
     # ── BigQuery ───────────────────────────────────────────────────────────────
-    events_today = 0
+    events_24h = events_7d = events_30d = 0
     if BQ_PROJECT and BQ_DATASET and BQ_TABLE:
         try:
             client = get_bq()
-            query = (
-                f"SELECT COUNT(*) AS cnt "
-                f"FROM `{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}` "
-                f"WHERE DATE(timestamp) = CURRENT_DATE()"
-            )
+            query = f"""
+                SELECT
+                    COUNTIF(timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)) AS h24,
+                    COUNTIF(DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY))       AS d7,
+                    COUNTIF(DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY))      AS d30
+                FROM `{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}`
+                WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+            """
             for row in client.query(query).result():
-                events_today = row.cnt
+                events_24h, events_7d, events_30d = row.h24, row.d7, row.d30
         except Exception as e:
             print(f"[ADMIN] BigQuery error: {e}")
 
     return {
-        "user_count":        user_count,
-        "zone_count":        zone_count,
-        "active_users_24h":  active_24h,
-        "users_with_zones":  users_with_zones,
-        "kid_count":         kid_count,
+        "user_count":         user_count,
+        "zone_count":         zone_count,
+        "users_with_zones":   users_with_zones,
+        "kid_count":          kid_count,
         "kids_outside_zones": kids_outside_zones,
-        "unprotected_users": unprotected_users,
-        "new_users_week":    new_users_week,
-        "users_no_zones":    users_no_zones,
-        "events_today":      events_today,
+        "unprotected_users":  unprotected_users,
+        "users_no_zones":     users_no_zones,
+        "new_users":  {"24h": new_users_24h, "7d": new_users_7d,  "30d": new_users_30d},
+        "events":     {"24h": events_24h,    "7d": events_7d,     "30d": events_30d},
     }
 
 
@@ -334,7 +342,7 @@ async def _pubsub_pull_loop() -> None:
                         "subscription": subscription_path,
                         "max_messages": 10,
                     },
-                    timeout=5,
+                    timeout=30,
                 ),
             )
             ack_ids = []
@@ -474,7 +482,7 @@ async def websocket_stats(websocket: WebSocket):
         while True:
             # Run sync DB/Firestore/BQ calls in a thread so we don't block the event loop
             stats = await loop.run_in_executor(None, _collect_stats)
-            stats["violations"] = list(violations_buffer)
+            stats["violations"] = list(violations_buffer)[-10:]
             await websocket.send_json(stats)
             await asyncio.sleep(PUSH_INTERVAL_SECONDS)
     except WebSocketDisconnect:
@@ -489,7 +497,7 @@ def get_stats(request: Request):
     if not get_current_user(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     stats = _collect_stats()
-    stats["violations"] = list(violations_buffer)
+    stats["violations"] = list(violations_buffer)[-10:]
     return JSONResponse(stats)
 
 
