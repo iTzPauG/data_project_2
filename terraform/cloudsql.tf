@@ -1,13 +1,9 @@
-# =============================================================================
-# Generate a random password for Cloud SQL user
 resource "random_password" "cloudsql_password" {
   length  = 16
   special = true
 }
-# SERVICE ACCOUNTS FOR CLOUD FUNCTIONS
-# =============================================================================
 
-# Cuenta de servicio dedicada para la Cloud Function de zones
+# Service accounts for Cloud Functions
 resource "google_service_account" "zone_data_function" {
   account_id   = "zone-data-function-sa"
   display_name = "Service Account for zone-data-to-sql Cloud Function"
@@ -49,10 +45,6 @@ resource "google_project_iam_member" "kids_data_function_sql_client" {
   member  = "serviceAccount:${google_service_account.kids_data_function.email}"
 }
 
-# =============================================================================
-# REQUIREMENTS FILE (shared by all cloud functions)
-# =============================================================================
-
 resource "local_file" "cloud_function_requirements" {
   filename = "../cloud-func/requirements.txt"
   content  = <<-EOT
@@ -62,10 +54,7 @@ google-cloud-firestore
 EOT
 }
 
-# =============================================================================
-# ZONE DATA CLOUD FUNCTION
-# =============================================================================
-
+# Zone data Cloud Function
 resource "archive_file" "zone_data_function_zip" {
   type        = "zip"
   output_path = "../cloud-func/zone/cloud_function_zone_data_to_sql.zip"
@@ -129,10 +118,7 @@ resource "google_cloudfunctions2_function" "zone_data_to_sql" {
   }
 }
 
-# =============================================================================
-# USER DATA CLOUD FUNCTION
-# =============================================================================
-
+# User data Cloud Function
 resource "archive_file" "user_data_function_zip" {
   type        = "zip"
   output_path = "../cloud-func/users/cloud_function_user_data_to_sql.zip"
@@ -189,10 +175,7 @@ resource "google_cloudfunctions2_function" "user_data_to_sql" {
   }
 }
 
-# =============================================================================
-# KIDS DATA CLOUD FUNCTION
-# =============================================================================
-
+# Kids data Cloud Function
 resource "archive_file" "kids_data_function_zip" {
   type        = "zip"
   output_path = "../cloud-func/kids/cloud_function_kids_data_to_sql.zip"

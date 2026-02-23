@@ -9,7 +9,6 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase"; 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-// --- 1. CONFIGURACIÓN ---
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const API_URL = import.meta.env.VITE_API_URL;
 const COLLECTION_NAME = "locations";
@@ -64,7 +63,6 @@ export default function App() {
   const [miniMapViewState, setMiniMapViewState] = useState(INITIAL_VIEW_STATE);
   const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "" });
 
-  // --- 3. EFECTOS ---
   useEffect(() => {
     const timer = setTimeout(() => setMapReady(true), 150);
     return () => clearTimeout(timer);
@@ -293,7 +291,6 @@ export default function App() {
     })
   ].filter(Boolean);
 
-  // --- 6. ESTILOS ---
   const appContainerStyle = { display: 'flex', width: '100vw', height: '100vh', backgroundColor: '#212529', overflow: 'hidden' };
   const sidebarStyle = { width: '320px', display: 'flex', flexDirection: 'column', padding: '30px 20px', boxSizing: 'border-box', overflowY: 'auto' };
   const mapWrapperStyle = { flex: 1, position: 'relative', margin: '20px 20px 20px 0', borderRadius: '24px', overflow: 'hidden', backgroundColor: '#343a40' };

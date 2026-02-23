@@ -1,4 +1,4 @@
-"""FastAPI REST API for Location & Zone Ingestion + Persistence."""
+"""FastAPI REST API for Location & Zone Ingestion."""
 
 import json
 import os
@@ -12,11 +12,31 @@ from google.cloud import pubsub_v1
 from google.cloud import bigquery
 from pydantic import BaseModel, field_validator
 from sqlalchemy import create_engine, Column, String, Float, DateTime
+from sqlalchemy import create_engine, Column, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+
+app = FastAPI(title="Location & Zone Ingestion API")
+
+@app.on_event("startup")
+async def startup_event():
+    Base.metadata.create_all(bind=engine)
+
+@app.options("/{path:path}")
+async def options_handler(path: str, response: Response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return {}
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 from fastapi import Response
 
-# --- CONFIGURACIÓN GOOGLE CLOUD ---
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 PUBSUB_LOCATION_TOPIC = os.environ.get("PUBSUB_LOCATION_TOPIC", "incoming-location-data")
 PUBSUB_ZONE_TOPIC = os.environ.get("PUBSUB_ZONE_TOPIC", "zone-data")
@@ -108,6 +128,7 @@ def get_db():
 # =====================================================================
 
 _publisher = None
+
 def get_publisher():
     global _publisher
     if _publisher is None:
@@ -214,14 +235,29 @@ async def publish_location(data: LocationRequest):
             print(f"Error PubSub Location: {e}")
     
     await manager.broadcast(message_dict)
-
     return {"status": "published"}
 
 # 2. CREAR ZONA (Solo publica a Pub/Sub)
 @app.post("/zone")
-async def create_zone(zone: ZoneRequest):
-    timestamp = datetime.utcnow()
-    zone_id = f"{zone.tag_id}-{timestamp}"
+async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
+    
+    # A) Guardar en Base de Datos (Cloud SQL / SQLite)
+    try:
+        db_zone = ZoneDB(
+            tag_id=str(zone.tag_id),
+            latitude=zone.latitude,
+            longitude=zone.longitude,
+            radius=zone.radius,
+            timestamp=datetime.utcnow(),
+        )
+        db.add(db_zone)
+        db.commit()
+        db.refresh(db_zone) # Obtenemos el ID generado
+    except Exception as e:
+        print(f"Error BD: {e}")
+        raise HTTPException(status_code=500, detail="Error guardando en base de datos")
+
+    # B) Enviar a Pub/Sub (Para que Dataflow se entere)
     message_dict = {
         "id": zone_id,
         "tag_id": str(zone.tag_id),
@@ -252,11 +288,11 @@ def get_zones(db: Session = Depends(get_db)):
             "longitude": z.longitude, 
             "radius": z.radius,
             "tag_id": z.tag_id
-        } 
+        }
         for z in zones
     ]
 
-# 4. WebSocket (Legacy)
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)

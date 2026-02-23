@@ -6,7 +6,7 @@
 *.tfplan
 tfplan
 plan.out
-*.tfvars.bak
+*.tfvars
 terraform-outputs.txt
 .terraformrc
 terraform.rc
