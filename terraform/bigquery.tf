@@ -26,6 +26,7 @@ EOF
 resource "google_bigquery_table" "notifications" {
   dataset_id = google_bigquery_dataset.bqdataset.dataset_id
   table_id   = "notifications"
+  deletion_protection = false
 
   schema = <<EOF
 [

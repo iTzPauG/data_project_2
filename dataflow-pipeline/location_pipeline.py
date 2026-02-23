@@ -174,14 +174,15 @@ class CheckZoneMatchFn(beam.DoFn):
                 }
         return None
 
-    def _get_user_phone(self, tag_id: str) -> Optional[str]:
-        """Get the phone number of the user associated with the tag_id."""
+
+    def _get_user_info(self, tag_id: str):
+        """Get the name of the child and the phone number of the user associated with the tag_id."""
         try:
             self._ensure_connection()
             cursor = self._conn.cursor()
             cursor.execute(
                 """
-                SELECT u.telefono
+                SELECT t.nombre, u.telefono
                 FROM tags t
                 JOIN users u ON t.user_id = u.user_id
                 WHERE t.tag_id = %s
@@ -190,25 +191,26 @@ class CheckZoneMatchFn(beam.DoFn):
             )
             row = cursor.fetchone()
             cursor.close()
-            return row[0] if row else None
+            if row:
+                return row[0], row[1]
+            return None, None
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error querying user phone: {e}")
+            logging.getLogger(__name__).error(f"Error querying user info: {e}")
             try:
                 self._conn.rollback()
             except Exception:
                 self._conn = None
-            return None
+            return None, None
 
-    def _generate_message(self, zone_type: str, zone_name: str, tag_id: str, phone: Optional[str]) -> str:
-        """Generate message based on zone type."""
+    def _generate_message(self, zone_type: str, zone_name: str, nombre: str, telefono: str) -> str:
         zone_display = zone_name if zone_name else 'zona'
+        nombre_display = nombre if nombre else 'desconocido'
+        telefono_display = telefono if telefono else 'desconocido'
         if zone_type == 'emergencia':
-            phone_str = phone if phone else 'desconocido'
-            return f"⚠️ ¡¡ALERTA DE EMERGENCIA!! El dispositivo {tag_id} ha entrado en {zone_display} (ZONA DE EMERGENCIA). ¡ATENCION INMEDIATA REQUERIDA! Llamando a {phone_str}"
-        elif zone_type == 'zona_segura':
-            return f"✅ El dispositivo {tag_id} ha entrado en {zone_display} (zona segura)."
-        else:  # aviso
-            return f"⚠️ Alerta: El dispositivo {tag_id} ha entrado en {zone_display} (zona de aviso)."
+            return f"AVISO: el niño {nombre_display} ha entrado en la zona {zone_display}. Llamando a {telefono_display}"
+        else:
+            return f"{zone_type}: el niño {nombre_display} ha entrado en la zona {zone_display}"
+
 
     def process(self, location: dict):
         try:
@@ -221,9 +223,8 @@ class CheckZoneMatchFn(beam.DoFn):
                 )
                 zone_type = violated_zone.get('zone_type', 'aviso')
                 zone_name = violated_zone.get('zone_name', '')
-                phone = self._get_user_phone(location['tag_id'])
-                message = self._generate_message(zone_type, zone_name, location['tag_id'], phone)
-                
+                nombre, telefono = self._get_user_info(location['tag_id'])
+                message = self._generate_message(zone_type, zone_name, nombre, telefono)
                 yield json.dumps({
                     'message': message,
                     'tag_id': location['tag_id'],
@@ -235,6 +236,8 @@ class CheckZoneMatchFn(beam.DoFn):
                     'distance_meters': round(distance, 2),
                     'zone_type': zone_type,
                     'zone_name': zone_name,
+                    'nombre': nombre,
+                    'telefono': telefono,
                 })
 
         except Exception as e:
