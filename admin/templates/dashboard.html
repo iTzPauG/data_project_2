@@ -440,7 +440,43 @@
       table { font-size: 0.72rem; }
       thead th, tbody td { padding: 0.65rem 0.75rem; }
     }
+    .chart-btn {
+      padding: .3rem .9rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: .8rem;
+      transition: background .15s, color .15s;
+    }
+    .chart-btn.active {
+      background: var(--cyan);
+      color: var(--bg);
+      border-color: var(--cyan);
+    }
+    .chart-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    /* ── period filter bar ── */
+    .filter-bar {
+      display: flex; align-items: center; gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .filter-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -488,9 +524,20 @@
     </button>
   </div>
 
-  <!-- stat cards — row 1 -->
-  <div class="cards-grid">
+  <!-- period filter -->
+  <div class="filter-bar">
+    <span class="filter-label">Period</span>
+    <div style="display:flex;gap:.5rem;">
+      <button id="filter-24h" class="chart-btn"        onclick="setFilter('24h')">Last 24 h</button>
+      <button id="filter-7d"  class="chart-btn active" onclick="setFilter('7d')">Last week</button>
+      <button id="filter-30d" class="chart-btn"        onclick="setFilter('30d')">Last month</button>
+    </div>
+  </div>
 
+  <!-- stat cards — 3×3 grid -->
+  <div class="cards-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+    <!-- row 1: user totals -->
     <div class="card card-cyan">
       <div class="card-icon-row">
         <div class="card-icon">
@@ -528,21 +575,6 @@
       <div class="card-label">Total Zone Records</div>
     </div>
 
-    <div class="card card-green">
-      <div class="card-icon-row">
-        <div class="card-icon">
-          <svg viewBox="0 0 24 24">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-          </svg>
-        </div>
-        <span class="card-badge">24 h</span>
-      </div>
-      <div class="card-value" id="val-active">
-        <span class="skeleton" style="width:60px; height:2.2rem;">&nbsp;</span>
-      </div>
-      <div class="card-label">Active Users (24 h)</div>
-    </div>
-
     <div class="card card-amber">
       <div class="card-icon-row">
         <div class="card-icon">
@@ -559,11 +591,7 @@
       <div class="card-label">Users with Zones</div>
     </div>
 
-  </div>
-
-  <!-- stat cards — row 2 -->
-  <div class="cards-grid">
-
+    <!-- row 2: kids stats -->
     <div class="card card-green">
       <div class="card-icon-row">
         <div class="card-icon">
@@ -614,24 +642,7 @@
       <div class="card-label">Unprotected Kids</div>
     </div>
 
-    <div class="card card-cyan">
-      <div class="card-icon-row">
-        <div class="card-icon">
-          <svg viewBox="0 0 24 24">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <line x1="19" y1="8" x2="19" y2="14"/>
-            <line x1="22" y1="11" x2="16" y2="11"/>
-          </svg>
-        </div>
-        <span class="card-badge">New</span>
-      </div>
-      <div class="card-value" id="val-new-users">
-        <span class="skeleton" style="width:60px; height:2.2rem;">&nbsp;</span>
-      </div>
-      <div class="card-label">New Users This Week</div>
-    </div>
-
+    <!-- row 3: time-filtered metrics -->
     <div class="card card-indigo">
       <div class="card-icon-row">
         <div class="card-icon">
@@ -648,6 +659,24 @@
       <div class="card-label">Users with No Zones</div>
     </div>
 
+    <div class="card card-cyan">
+      <div class="card-icon-row">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <line x1="19" y1="8" x2="19" y2="14"/>
+            <line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+        </div>
+        <span class="card-badge">New</span>
+      </div>
+      <div class="card-value" id="val-new-users">
+        <span class="skeleton" style="width:60px; height:2.2rem;">&nbsp;</span>
+      </div>
+      <div class="card-label" id="label-new-users">New Users · Last week</div>
+    </div>
+
     <div class="card card-indigo">
       <div class="card-icon-row">
         <div class="card-icon">
@@ -662,7 +691,7 @@
       <div class="card-value" id="val-events-today">
         <span class="skeleton" style="width:60px; height:2.2rem;">&nbsp;</span>
       </div>
-      <div class="card-label">Events Today</div>
+      <div class="card-label" id="label-events">Events · Last week</div>
     </div>
 
   </div>
@@ -677,7 +706,7 @@
     <table>
       <thead>
         <tr>
-          <th>Time</th>
+          <th>Date / Time</th>
           <th>User ID</th>
           <th>Distance (m)</th>
         </tr>
@@ -685,6 +714,18 @@
       <tbody id="violations-tbody"></tbody>
     </table>
     <div id="violations-empty" class="empty-state">No violations recorded</div>
+  </div>
+
+  <!-- Messages Received Chart -->
+  <div class="section-header" style="margin-top:2rem;">
+    <h2 class="section-title">Messages Received</h2>
+    <div style="display:flex;gap:.5rem;">
+      <button id="btn-daily"   class="chart-btn active" onclick="switchView('daily')">Last 30 days</button>
+      <button id="btn-monthly" class="chart-btn"        onclick="switchView('monthly')">Last 12 months</button>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="messages-chart"></canvas>
   </div>
 
 </main>
@@ -734,13 +775,14 @@
     tbody.innerHTML = '';
     sorted.forEach(function(v) {
       var tr = document.createElement('tr');
-      var ts   = v.timestamp ? new Date(v.timestamp).toLocaleTimeString() : '—';
+      var _d   = v.timestamp ? new Date(v.timestamp) : null;
+      var ts   = _d ? _d.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' · ' + _d.toLocaleTimeString() : '—';
       var dist = typeof v.distance_meters === 'number'
         ? Math.round(v.distance_meters).toLocaleString()
         : (v.distance_meters || '—');
       tr.innerHTML =
         '<td>' + ts + '</td>' +
-        '<td class="mono">' + (v.user_id || '—') + '</td>' +
+        '<td class="mono">' + (v.tag_id || '—') + '</td>' +
         '<td>' + dist + ' m</td>';
 
       // Flash new rows that arrived since last render
@@ -756,16 +798,16 @@
 
   // ── Data application ─────────────────────────────────────────────────────────
   function applyData(data) {
+    _lastStatsData = data;
     setCardValue('val-users',         data.user_count);
     setCardValue('val-zones',         data.zone_count);
-    setCardValue('val-active',        data.active_users_24h);
-    setCardValue('val-with-zones',    data.users_with_zones);
+setCardValue('val-with-zones',    data.users_with_zones);
     setCardValue('val-kids',          data.kid_count);
     setCardValue('val-outside-zones', data.kids_outside_zones);
     setCardValue('val-unprotected',   data.unprotected_users);
-    setCardValue('val-new-users',     data.new_users_week);
-    setCardValue('val-no-zones',      data.users_no_zones);
-    setCardValue('val-events-today',  data.events_today);
+    setCardValue('val-new-users',    (data.new_users  || {})[_filterPeriod] || 0);
+    setCardValue('val-no-zones',     data.users_no_zones);
+    setCardValue('val-events-today', (data.events     || {})[_filterPeriod] || 0);
 
     // Toggle alert colour on Kids Outside Zones card
     var outsideCard = document.getElementById('card-outside-zones');
@@ -839,6 +881,84 @@
     if (ws) ws.close();
     connect();
   }
+
+  // ── Messages chart ────────────────────────────────────────────────────────────
+  var _messagesChart = null;
+  // ── Period filter (affects New Users + Events cards) ─────────────────────────
+  var _filterPeriod = '7d';
+  var _filterLabels = {'24h': 'Last 24 h', '7d': 'Last week', '30d': 'Last month'};
+  var _lastStatsData = null;
+
+  function setFilter(period) {
+    _filterPeriod = period;
+    ['24h', '7d', '30d'].forEach(function(p) {
+      document.getElementById('filter-' + p).classList.toggle('active', p === period);
+    });
+    document.getElementById('label-new-users').textContent = 'New Users · ' + _filterLabels[period];
+    document.getElementById('label-events').textContent    = 'Events · '    + _filterLabels[period];
+    if (_lastStatsData) applyData(_lastStatsData);
+  }
+
+  // ── Messages chart ────────────────────────────────────────────────────────────
+  var _messagesChart = null;
+  var _chartView     = 'daily';
+  var _chartData     = null;
+
+  function switchView(view) {
+    _chartView = view;
+    document.getElementById('btn-daily').classList.toggle('active', view === 'daily');
+    document.getElementById('btn-monthly').classList.toggle('active', view === 'monthly');
+    if (_chartData) renderChart(_chartData);
+  }
+
+  function renderChart(data) {
+    _chartData = data;
+    var isMonthly = _chartView === 'monthly';
+    var series    = isMonthly ? (data.messages_per_month || []) : (data.messages_per_day || []);
+    var labels    = series.map(function(r) { return isMonthly ? r.month : r.date; });
+    var counts    = series.map(function(r) { return r.count; });
+
+    if (!_messagesChart) {
+      var ctx = document.getElementById('messages-chart').getContext('2d');
+      _messagesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Messages',
+            data: counts,
+            backgroundColor: 'rgba(34,211,238,0.25)',
+            borderColor: '#22d3ee',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0, color: '#8294b8' }, grid: { color: 'rgba(100,130,200,0.1)' } },
+            x: { ticks: { color: '#8294b8' }, grid: { color: 'rgba(100,130,200,0.1)' } }
+          }
+        }
+      });
+    } else {
+      _messagesChart.data.labels = labels;
+      _messagesChart.data.datasets[0].data = counts;
+      _messagesChart.update('none');
+    }
+  }
+
+  function fetchChartData() {
+    fetch('/admin/api/chart')
+      .then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(data) { renderChart(data); })
+      .catch(function(e) { console.warn('Chart fetch error', e); });
+  }
+
+  fetchChartData();                       // load on page open
+  setInterval(fetchChartData, 60000);     // refresh every 60 s
 
   // Start on page load
   connect();
