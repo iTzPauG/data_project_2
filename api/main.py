@@ -2,39 +2,19 @@
 
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, Union, List
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import pubsub_v1
 from google.cloud import bigquery
 from pydantic import BaseModel, field_validator
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import create_engine, Column, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi import Response
-
-app = FastAPI(title="Location & Zone Ingestion API")
-
-@app.on_event("startup")
-async def startup_event():
-    Base.metadata.create_all(bind=engine)
-
-@app.options("/{path:path}")
-async def options_handler(path: str, response: Response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return {}
-
-# --- CORS ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # --- CONFIGURACIÓN GOOGLE CLOUD ---
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
@@ -43,7 +23,7 @@ PUBSUB_ZONE_TOPIC = os.environ.get("PUBSUB_ZONE_TOPIC", "zone-data")
 PUBSUB_USER_TOPIC = os.environ.get("PUBSUB_USER_TOPIC", "user-data")
 PUBSUB_KIDS_TOPIC = os.environ.get("PUBSUB_KIDS_TOPIC", "kids-data")
 
-# Inicializamos el cliente de BigQuery
+# BigQuery client
 bq_client = bigquery.Client(project=GCP_PROJECT_ID) if GCP_PROJECT_ID else None
 
 # --- CONFIGURACIÓN BASE DE DATOS ---
@@ -56,7 +36,6 @@ Base = declarative_base()
 
 # =====================================================================
 # --- MODELOS DE BASE DE DATOS (SQLAlchemy) ---
-# TODAS las tablas deben definirse AQUÍ, antes de llamar a create_all()
 # =====================================================================
 
 class ZoneDB(Base):
@@ -67,7 +46,56 @@ class ZoneDB(Base):
     radius = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
 
-# Dependencia para obtener la DB
+class KidDB(Base):
+    __tablename__ = "kids"
+    tag_id = Column(String, primary_key=True)
+    nombre = Column(String)
+    user_id = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class UserDB(Base):
+    __tablename__ = "users"
+    user_id = Column(String, primary_key=True)
+    username = Column(String)
+    nombre = Column(String)
+    apellidos = Column(String)
+    correo = Column(String)
+    telefono = Column(String)
+    password = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+# =====================================================================
+# --- LIFESPAN: crea tablas al arrancar, sin crashear si DB no lista ---
+# =====================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"WARNING: No se pudieron crear las tablas al arrancar: {e}")
+    yield
+
+app = FastAPI(title="Location & Zone Ingestion API", lifespan=lifespan)
+
+# --- OPTIONS handler para CORS preflight ---
+@app.options("/{path:path}")
+async def options_handler(path: str, response: Response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return {}
+
+# --- CORS ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- Dependencia DB ---
 def get_db():
     db = SessionLocal()
     try:
@@ -159,9 +187,13 @@ class KidRequest(BaseModel):
     nombre: str
     user_id: Union[str, int]
 
+# NUEVO MODELO PARA EL LOGIN
+class LoginRequest(BaseModel):
+    correo: str
+    password: str
 
 # =====================================================================
-# --- ENDPOINTS DE LA API ---
+# --- ENDPOINTS ---
 # =====================================================================
 
 # 1. PUBLICAR UBICACIÓN
@@ -182,9 +214,10 @@ async def publish_location(data: LocationRequest):
             print(f"Error PubSub Location: {e}")
     
     await manager.broadcast(message_dict)
+
     return {"status": "published"}
 
-# 2. CREAR ZONA (Admin) - Solo publica a Pub/Sub, la Cloud Function escribe en SQL
+# 2. CREAR ZONA (Solo publica a Pub/Sub)
 @app.post("/zone")
 async def create_zone(zone: ZoneRequest):
     timestamp = datetime.utcnow()
@@ -208,13 +241,13 @@ async def create_zone(zone: ZoneRequest):
 
     return {"status": "ok", "zone_id": zone_id}
 
-# 3. LEER ZONAS 
+# 3. LEER ZONAS
 @app.get("/zones")
 def get_zones(db: Session = Depends(get_db)):
     zones = db.query(ZoneDB).all()
     return [
         {
-            "id": f"{z.tag_id}-{z.timestamp}", 
+            "id": f"{z.tag_id}-{z.timestamp}",
             "latitude": z.latitude, 
             "longitude": z.longitude, 
             "radius": z.radius,
@@ -223,7 +256,7 @@ def get_zones(db: Session = Depends(get_db)):
         for z in zones
     ]
 
-# 4. WEBSOCKET (Legacy)
+# 4. WebSocket (Legacy)
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -233,9 +266,14 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# 5. REGISTRAR USUARIO
+# 5. REGISTRAR USUARIO (Valida en BD, publica en Pub/Sub)
 @app.post("/users")
-def register_user(data: UserRequest):
+def register_user(data: UserRequest, db: Session = Depends(get_db)):
+    # Validación rápida: ¿Existe el correo?
+    existing = db.query(UserDB).filter(UserDB.correo == data.correo).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="El correo ya está registrado")
+
     if not GCP_PROJECT_ID:
         raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
 
@@ -250,15 +288,21 @@ def register_user(data: UserRequest):
         "timestamp": datetime.now().isoformat(),
     }
 
+    print(f"[API] User registration: {message}")
     topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_USER_TOPIC)
     future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
     message_id = future.result()
 
     return {"status": "ok", "message_id": message_id}
 
-# 6. REGISTRAR NIÑO (TAG)
+# 6. REGISTRAR NIÑO (Valida en BD, publica en Pub/Sub)
 @app.post("/tags")
-def register_kid(data: KidRequest):
+def register_kid(data: KidRequest, db: Session = Depends(get_db)):
+    # Validación rápida: ¿Existe el Tag ID?
+    existing = db.query(KidDB).filter(KidDB.tag_id == str(data.tag_id)).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Este Tag ID ya está registrado")
+
     if not GCP_PROJECT_ID:
         raise HTTPException(status_code=500, detail="GCP_PROJECT_ID not configured")
 
@@ -269,22 +313,42 @@ def register_kid(data: KidRequest):
         "timestamp": datetime.now().isoformat(),
     }
 
+    print(f"[API] tag registration: {message}")
     topic_path = get_publisher().topic_path(GCP_PROJECT_ID, PUBSUB_KIDS_TOPIC)
     future = get_publisher().publish(topic_path, json.dumps(message).encode("utf-8"))
     message_id = future.result()
 
     return {"status": "ok", "message_id": message_id}
 
-# 7. HISTORIAL (BIGQUERY)
+# 7. LOGIN (VITAL PARA EL FRONTEND)
+@app.post("/login")
+def login_user(data: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(UserDB).filter(UserDB.correo == data.correo).first()
+    if not user or user.password != data.password:
+        raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
+    return {
+        "status": "ok",
+        "user_id": user.user_id,
+        "nombre": user.nombre,
+        "apellidos": user.apellidos,
+    }
+
+# 8. OBTENER NIÑOS DE UN PADRE (VITAL PARA EL FRONTEND)
+@app.get("/kids/{user_id}")
+def get_kids(user_id: str, db: Session = Depends(get_db)):
+    kids = db.query(KidDB).filter(KidDB.user_id == user_id).all()
+    return [{"tag_id": k.tag_id, "name": k.nombre} for k in kids]
+
+# 9. HISTORIAL CON BIGQUERY (VITAL PARA EL FRONTEND)
 @app.get("/history/{tag_id}")
 def get_history(
     tag_id: str,
-    start_time: str = Query(...), 
-    end_time: str = Query(...)
+    # ¡AQUÍ ESTÁ LA MAGIA! Cambiamos 'str' por 'datetime'
+    start_time: datetime = Query(...),
+    end_time: datetime = Query(...),
 ):
     if not bq_client:
-        raise HTTPException(status_code=500, detail="BigQuery no está configurado (Falta GCP_PROJECT_ID)")
-
+        raise HTTPException(status_code=500, detail="BigQuery no está configurado")
     try:
         query = """
             SELECT latitude, longitude, timestamp
@@ -294,27 +358,20 @@ def get_history(
               AND timestamp <= @end_time
             ORDER BY timestamp ASC
         """
-        
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
                 bigquery.ScalarQueryParameter("tag_id", "STRING", tag_id),
+                # Ahora start_time y end_time son objetos datetime reales, ¡BigQuery será feliz!
                 bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", start_time),
                 bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", end_time),
             ]
         )
+        results = bq_client.query(query, job_config=job_config).result()
+        path = [[row.longitude, row.latitude] for row in results]
         
-        query_job = bq_client.query(query, job_config=job_config)
-        results = query_job.result()
-        
-        path_coordinates = []
-        for row in results:
-            path_coordinates.append([row.longitude, row.latitude])
-            
-        if not path_coordinates:
+        if not path:
             return {"path": [], "mensaje": "No hay datos en ese rango"}
-            
-        return {"path": path_coordinates}
-        
+        return {"path": path}
     except Exception as e:
         print(f"Error BigQuery: {e}")
-        raise HTTPException(status_code=500, detail="Error consultando el historial en BigQuery")
+        raise HTTPException(status_code=500, detail="Error consultando el historial")

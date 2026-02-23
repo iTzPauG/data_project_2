@@ -70,19 +70,26 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Cargar niños de la DB al loguearse
+  // Cargar niños de la DB al loguearse y auto-seleccionar el primero
   useEffect(() => {
     if (!loggedUser) return;
+    
     const fetchKids = async () => {
       try {
         const res = await axios.get(`${API_URL}/kids/${loggedUser.user_id}`);
         setKids(res.data);
+        
+        // CORRECCIÓN: Autoseleccionar el primer niño si no hay ninguno seleccionado
+        if (res.data.length > 0 && !selectedKidTag) {
+          setSelectedKidTag(res.data[0].tag_id);
+        }
       } catch (error) {
         console.error("Error cargando niños:", error);
       }
     };
+    
     fetchKids();
-  }, [loggedUser]);
+  }, [loggedUser, selectedKidTag]);
 
   // Cargar zonas de la DB al loguearse
   useEffect(() => {
@@ -97,12 +104,6 @@ export default function App() {
     };
     fetchZones();
   }, [loggedUser]);
-
-  useEffect(() => {
-    if (kids.length > 0 && !selectedKidTag) {
-      setSelectedKidTag(kids[0].tag_id);
-    }
-  }, [kids]);
 
   // Al cambiar de niño, resetear el centrado
   useEffect(() => {
@@ -146,12 +147,14 @@ export default function App() {
     setIsAuthenticating(true);
     try {
       if (isLoginMode) {
+        // --- LOGIN ---
         const res = await axios.post(`${API_URL}/login`, {
           correo: loginEmail,
           password: loginPassword
         });
         if (res.data.status === "ok") setLoggedUser(res.data);
       } else {
+        // --- REGISTRO ---
         const newUserId = Date.now().toString(); 
         const res = await axios.post(`${API_URL}/users`, {
           user_id: newUserId,
@@ -162,12 +165,16 @@ export default function App() {
           telefono: regTelefono,
           password: loginPassword
         });
+        
         if (res.data.status === "ok") {
-          setLoggedUser({ user_id: newUserId, nombre: regNombre, apellidos: regApellidos });
+          // CORRECCIÓN: Avisar de éxito y cambiar a pantalla de login
+          alert("¡Cuenta creada con éxito! Por favor, inicia sesión para continuar.");
+          setIsLoginMode(true);
+          setLoginPassword(""); // Limpiamos password por seguridad
         }
       }
     } catch (error) {
-      setAuthError(error.response?.data?.detail || "Error de autenticación.");
+      setAuthError(error.response?.data?.detail || "Error de conexión con el servidor.");
     } finally {
       setIsAuthenticating(false);
     }
@@ -186,6 +193,10 @@ export default function App() {
       setShowKidModal(false);
       setKidName(""); 
       setDeviceTag("");
+      // Si es el primer niño que añadimos, lo seleccionamos
+      if (kids.length === 0) {
+          setSelectedKidTag(deviceTag);
+      }
     } catch (error) {
       console.error("Error API al guardar niño:", error);
       alert("Error al guardar en la base de datos.");
@@ -198,7 +209,6 @@ export default function App() {
     }
   };
 
-  // CORREGIDO: guarda en BD via API antes de actualizar el estado local
   const handleSaveZone = async () => {
     if (nuevaZona.latitude == null || !nuevaZona.tag_id) {
       alert("Por favor, selecciona un punto en el mapa y asigna un niño.");
@@ -244,6 +254,7 @@ export default function App() {
       }
     } catch (error) {
       console.error(error);
+      alert("Error consultando el historial");
     } finally {
       setIsLoadingHistory(false);
     }
