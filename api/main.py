@@ -7,12 +7,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, Union, List
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import pubsub_v1
 from google.cloud import bigquery
 from pydantic import BaseModel, field_validator
-from sqlalchemy import create_engine, Column, String, Float, DateTime
 from sqlalchemy import create_engine, Column, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -39,7 +38,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-from fastapi import Response
 
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 PUBSUB_LOCATION_TOPIC = os.environ.get("PUBSUB_LOCATION_TOPIC", "incoming-location-data")
@@ -68,6 +66,8 @@ class ZoneDB(Base):
     latitude = Column(Float)
     longitude = Column(Float)
     radius = Column(Float)
+    zone_type = Column(String, default="aviso")
+    zone_name = Column(String, default="")
     timestamp = Column(DateTime, default=datetime.utcnow, primary_key=True)
 
 class KidDB(Base):
@@ -176,6 +176,8 @@ class ZoneRequest(BaseModel):
     radius: float
     timestamp: Optional[str] = None
     node_id: Optional[str] = None
+    zone_type: Optional[str] = "aviso"  # emergencia, aviso, zona_segura
+    zone_name: Optional[str] = ""  # nombre de la zona
 
     @field_validator("latitude")
     @classmethod
@@ -197,6 +199,15 @@ class ZoneRequest(BaseModel):
         if v <= 0:
             raise ValueError("Radius must be positive")
         return v
+
+    @field_validator("zone_type")
+    @classmethod
+    def validate_zone_type(cls, v):
+        allowed = ["emergencia", "aviso", "zona_segura"]
+        if v not in allowed:
+            raise ValueError(f"zone_type must be one of: {allowed}")
+        return v
+
 
 class UserRequest(BaseModel):
     user_id: Union[str, int]
@@ -246,13 +257,16 @@ async def publish_location(data: LocationRequest):
 async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
     
     # A) Guardar en Base de Datos (Cloud SQL / SQLite)
+    timestamp = datetime.utcnow()
     try:
         db_zone = ZoneDB(
             tag_id=str(zone.tag_id),
             latitude=zone.latitude,
             longitude=zone.longitude,
             radius=zone.radius,
-            timestamp=datetime.utcnow(),
+            zone_type=zone.zone_type,
+            zone_name=zone.zone_name,
+            timestamp=timestamp,
         )
         db.add(db_zone)
         db.commit()
@@ -261,6 +275,8 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         print(f"Error BD: {e}")
         raise HTTPException(status_code=500, detail="Error guardando en base de datos")
 
+    zone_id = f"{zone.tag_id}-{timestamp.isoformat()}"
+
     # B) Enviar a Pub/Sub (Para que Dataflow se entere)
     message_dict = {
         "id": zone_id,
@@ -268,6 +284,8 @@ async def create_zone(zone: ZoneRequest, db: Session = Depends(get_db)):
         "latitude": zone.latitude,
         "longitude": zone.longitude,
         "radius": zone.radius,
+        "zone_type": zone.zone_type,
+        "zone_name": zone.zone_name,
         "timestamp": str(timestamp)
     }
 
@@ -291,7 +309,9 @@ def get_zones(db: Session = Depends(get_db)):
             "latitude": z.latitude, 
             "longitude": z.longitude, 
             "radius": z.radius,
-            "tag_id": z.tag_id
+            "tag_id": z.tag_id,
+            "zone_type": z.zone_type,
+            "zone_name": z.zone_name
         }
         for z in zones
     ]
