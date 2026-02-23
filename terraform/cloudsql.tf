@@ -51,6 +51,7 @@ resource "local_file" "cloud_function_requirements" {
 psycopg2-binary
 google-cloud-secret-manager
 google-cloud-firestore
+functions-framework
 EOT
 }
 
@@ -281,5 +282,81 @@ output "cloud_functions" {
     zone_data_to_sql = google_cloudfunctions2_function.zone_data_to_sql.service_config[0].uri
     user_data_to_sql = google_cloudfunctions2_function.user_data_to_sql.service_config[0].uri
     kids_data_to_sql = google_cloudfunctions2_function.kids_data_to_sql.service_config[0].uri
+  }
+}
+# =================================================================
+# NUEVA CLOUD FUNCTION: NOTIFICACIONES (Pub/Sub -> Firestore)
+# =================================================================
+
+# 1. Cuenta de servicio dedicada para la función de notificaciones
+resource "google_service_account" "notifications_function" {
+  account_id   = "notifications-function-sa"
+  display_name = "Service Account for notifications Cloud Function"
+}
+
+# 2. Le damos permiso para escribir en Firestore (Datastore User)
+resource "google_project_iam_member" "notifications_function_firestore" {
+  project = var.gcp_project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.notifications_function.email}"
+}
+
+# 3. Empaquetamos el código en un ZIP
+resource "archive_file" "notifications_function_zip" {
+  type        = "zip"
+  output_path = "../cloud-func/notifications/cloud_function_notifications.zip"
+  source {
+    # Aquí es donde tienes que poner el main.py que te pasé antes
+    content  = file("../cloud-func/notifications/main.py")
+    filename = "main.py"
+  }
+  source {
+    content  = local_file.cloud_function_requirements.content
+    filename = "requirements.txt"
+  }
+  excludes   = ["*.zip"]
+  depends_on = [local_file.cloud_function_requirements]
+}
+
+# 4. Subimos el ZIP al bucket que ya tienes
+resource "google_storage_bucket_object" "notifications_function_zip" {
+  name   = "cloud_function_notifications.zip"
+  bucket = google_storage_bucket.cloud_functions_code.name
+  source = archive_file.notifications_function_zip.output_path
+}
+
+# 5. Desplegamos la Cloud Function
+resource "google_cloudfunctions2_function" "notificaciones_alertas" {
+  name        = "notificaciones-alertas"
+  location    = var.gcp_region
+  description = "Procesa alertas de Pub/Sub y las guarda en Firestore para los popups de React"
+  
+  build_config {
+    runtime     = "python310" # Usamos el mismo runtime que tus otras funciones
+    entry_point = "pubsub_to_firestore"
+    source {
+      storage_source {
+        bucket = google_storage_bucket.cloud_functions_code.name
+        object = google_storage_bucket_object.notifications_function_zip.name
+      }
+    }
+  }
+  
+  service_config {
+    min_instance_count = 1
+    max_instance_count = 1
+    available_memory   = "256M"
+    timeout_seconds    = 180
+    environment_variables = {
+      GCP_PROJECT = var.gcp_project_id
+    }
+    service_account_email = google_service_account.notifications_function.email
+  }
+  
+  event_trigger {
+    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
+    trigger_region = var.gcp_region
+    # Usamos la variable de tu tópico de notificaciones (la vi en tu cloudbuild.yaml)
+    pubsub_topic   = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
   }
 }

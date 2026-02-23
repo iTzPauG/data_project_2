@@ -5,10 +5,14 @@ import { ScatterplotLayer, PathLayer } from '@deck.gl/layers';
 import axios from 'axios';
 
 // --- IMPORTAR FIREBASE ---
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase"; 
 import 'mapbox-gl/dist/mapbox-gl.css';
 
+// --- IMPORTAR NOTIFICACIONES ---
+import toast, { Toaster } from 'react-hot-toast';
+
+// --- 1. CONFIGURACIÓN ---
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const API_URL = import.meta.env.VITE_API_URL;
 const COLLECTION_NAME = "locations";
@@ -54,15 +58,16 @@ export default function App() {
   const [historyRoute, setHistoryRoute] = useState(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // Estados Modales
+  // Estados Modales - AÑADIDO zone_data
   const [showKidModal, setShowKidModal] = useState(false);
   const [kidName, setKidName] = useState("");
   const [deviceTag, setDeviceTag] = useState(""); 
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [isSavingZone, setIsSavingZone] = useState(false);
   const [miniMapViewState, setMiniMapViewState] = useState(INITIAL_VIEW_STATE);
-  const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "" });
+  const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_data: "" });
 
+  // --- 3. EFECTOS ---
   useEffect(() => {
     const timer = setTimeout(() => setMapReady(true), 150);
     return () => clearTimeout(timer);
@@ -77,7 +82,6 @@ export default function App() {
         const res = await axios.get(`${API_URL}/kids/${loggedUser.user_id}`);
         setKids(res.data);
         
-        // Autoseleccionar el primer niño
         if (res.data.length > 0 && !selectedKidTag) {
           setSelectedKidTag(res.data[0].tag_id);
         }
@@ -87,7 +91,7 @@ export default function App() {
     };
     
     fetchKids();
-  }, [loggedUser]); // Quitamos dependencias extra para evitar loops
+  }, [loggedUser]); 
 
   // Cargar zonas de la DB al loguearse
   useEffect(() => {
@@ -109,7 +113,7 @@ export default function App() {
     setUbicacionUsuario(null);
   }, [selectedKidTag]);
 
-  // Listener de Firebase para ubicación en vivo
+  // Listener de Firebase para UBICACIÓN EN VIVO
   useEffect(() => {    
     if (!db || !selectedKidTag || activeView !== 'live' || !loggedUser) return;
 
@@ -127,42 +131,76 @@ export default function App() {
               setHaCentradoInicial(true); 
             }
           }
+        } else {
+          console.warn(`No hay datos en Firestore para tag_id: ${selectedKidTag}`);
         }
       },
-      (error) => console.error("Error Firebase:", error)
+      (error) => console.error("Error Firebase (Ubicación):", error)
     );
 
     return () => unsubscribe();
   }, [selectedKidTag, haCentradoInicial, activeView, loggedUser]);
 
+  // Listener de Firebase para NOTIFICACIONES (Alertas de Zona)
+  useEffect(() => {
+    if (!db || !loggedUser) return;
+
+    const q = query(
+      collection(db, "notifications"),
+      where("user_id", "==", String(loggedUser.user_id))
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const alerta = change.doc.data();
+          const ahora = Date.now();
+          const tiempoAlerta = alerta.timestamp; 
+          
+          if (ahora - tiempoAlerta < 10000) { 
+            toast.error(
+              `¡Alerta! ${alerta.kid_name} ha infringido la zona: ${alerta.zone_name}`,
+              {
+                duration: 6000, 
+                position: 'top-right',
+                style: {
+                  background: '#333',
+                  color: '#fff',
+                  border: '1px solid #dc2626'
+                },
+              }
+            );
+          }
+        }
+      });
+    }, (error) => console.error("Error Firebase (Notificaciones):", error));
+
+    return () => unsubscribe();
+  }, [loggedUser]);
+
+
   // --- 4. MANEJADORES DE DATOS ---
 
-  // NUEVO: Función envuelta en useCallback para poder llamarla desde el useEffect
   const handleSearchHistory = useCallback(async () => {
     if (!selectedKidTag) return;
     setIsLoadingHistory(true);
     
-    // CORRECCIÓN FINAL: Volvemos a usar toISOString()
-    // Esto coge la hora de España y la pasa a UTC para que coincida 
-    // exactamente con el reloj de tu servidor de Google Cloud Run.
-    const startIso = new Date(`${historyDate}T${historyStartTime}:00`).toISOString();
-    const endIso = new Date(`${historyDate}T${historyEndTime}:00`).toISOString();
+    const startIso = `${historyDate}T${historyStartTime}:00.000Z`;
+    const endIso = `${historyDate}T${historyEndTime}:00.000Z`;
     
     try {
       const response = await axios.get(`${API_URL}/history/${selectedKidTag}`, {
         params: { start_time: startIso, end_time: endIso }
       });
       
-      // DeckGL necesita un mínimo de 2 puntos para poder trazar una línea.
       if (response.data.path && response.data.path.length > 1) {
         setHistoryRoute({ path: response.data.path });
         setViewState(prev => ({ ...prev, longitude: response.data.path[0][0], latitude: response.data.path[0][1], zoom: 15, pitch: 45, transitionDuration: 1500 }));
       } else if (response.data.path && response.data.path.length === 1) {
-        // Si solo hay 1 punto en ese rango de tiempo, avisamos (no se puede hacer una línea con 1 punto)
         alert("Solo hay 1 punto de ubicación en este rango de tiempo. Se necesitan al menos 2 para dibujar una ruta.");
         setHistoryRoute(null);
       } else {
-        setHistoryRoute(null); // No hay datos, limpiamos la ruta
+        setHistoryRoute(null);
       }
     } catch (error) {
       console.error("Error consultando historial:", error);
@@ -171,13 +209,11 @@ export default function App() {
     }
   }, [selectedKidTag, historyDate, historyStartTime, historyEndTime]);
 
-  // NUEVO: Efecto para recargar el historial automáticamente al cambiar de niño o de vista
   useEffect(() => {
     if (activeView === 'history' && selectedKidTag) {
       handleSearchHistory();
     }
   }, [selectedKidTag, activeView, handleSearchHistory]);
-
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -244,8 +280,9 @@ export default function App() {
   };
 
   const handleSaveZone = async () => {
-    if (nuevaZona.latitude == null || !nuevaZona.tag_id) {
-      alert("Por favor, selecciona un punto en el mapa y asigna un niño.");
+    // AÑADIDO: Comprobamos que el nombre de la zona no esté vacío
+    if (nuevaZona.latitude == null || !nuevaZona.tag_id || !nuevaZona.zone_data.trim()) {
+      alert("Por favor, selecciona un punto, asigna un niño y dale un nombre a la zona.");
       return;
     }
     setIsSavingZone(true);
@@ -255,9 +292,11 @@ export default function App() {
         latitude: nuevaZona.latitude,
         longitude: nuevaZona.longitude,
         radius: nuevaZona.radius,
+        zone_data: nuevaZona.zone_data // AÑADIDO: Mandamos el nombre de la zona
       });
       setZonasSQL(prev => [...prev, { ...nuevaZona, user_id: loggedUser.user_id }]);
-      setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "" });
+      // AÑADIDO: Reseteamos zone_data
+      setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_data: "" });
       setShowZoneModal(false);
     } catch (error) {
       console.error("Error guardando zona:", error);
@@ -345,6 +384,9 @@ export default function App() {
   // ==========================================
   return (
     <div style={appContainerStyle}>
+      
+      {/* Componente Toaster necesario para renderizar los popups */}
+      <Toaster />
 
       {/* MODAL: AÑADIR NIÑO */}
       {showKidModal && (
@@ -422,6 +464,20 @@ export default function App() {
               )}
             </div>
 
+            {/* AÑADIDO: INPUT PARA EL NOMBRE DE LA ZONA (ZONE_DATA) */}
+            <div>
+              <label style={{ fontSize: '14px', color: '#adb5bd', display: 'block', marginBottom: '6px' }}>
+                Nombre de la Zona:
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. Colegio, Parque, Casa Abuela..."
+                value={nuevaZona.zone_data}
+                onChange={e => setNuevaZona(prev => ({ ...prev, zone_data: e.target.value }))}
+                style={{ ...inputStyle, marginBottom: '10px' }}
+              />
+            </div>
+
             {/* RADIO */}
             <div>
               <label style={{ fontSize: '14px', color: '#adb5bd', display: 'block', marginBottom: '6px' }}>
@@ -450,7 +506,7 @@ export default function App() {
               <button
                 onClick={() => {
                   setShowZoneModal(false);
-                  setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "" });
+                  setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_data: "" }); // Reseteado con zone_data
                 }}
                 style={{ ...buttonStyle, margin: 0, backgroundColor: 'transparent' }}
               >
