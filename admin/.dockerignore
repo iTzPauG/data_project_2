@@ -1,0 +1,8 @@
+.env
+docker-compose.yml
+seed_bq.py
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/

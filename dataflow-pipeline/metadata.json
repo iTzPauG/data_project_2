@@ -33,6 +33,13 @@
       "isOptional": false
     },
     {
+      "name": "firestore_notifications_collection",
+      "label": "Firestore collection for notifications",
+      "helpText": "Firestore collection to store last notification per user.",
+      "isOptional": true,
+      "defaultValue": "notifications"
+    },
+    {
       "name": "zones_sql",
       "label": "Zones SQL table",
       "helpText": "Cloud SQL table name for restricted zones.",
@@ -50,6 +57,13 @@
       "label": "BigQuery table name",
       "helpText": "BigQuery table name for location history.",
       "isOptional": false
+    },
+    {
+      "name": "bq_notifications_table",
+      "label": "BigQuery notifications table name",
+      "helpText": "BigQuery table name for zone notifications.",
+      "isOptional": true,
+      "defaultValue": "notifications"
     },
     {
       "name": "db_host",

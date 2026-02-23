@@ -4,3 +4,4 @@ google-cloud-pubsub
 sqlalchemy
 psycopg2-binary
 google-cloud-bigquery
+bcrypt

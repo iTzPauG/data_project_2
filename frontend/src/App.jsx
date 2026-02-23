@@ -65,7 +65,7 @@ export default function App() {
   const [showZoneModal, setShowZoneModal] = useState(false);
   const [isSavingZone, setIsSavingZone] = useState(false);
   const [miniMapViewState, setMiniMapViewState] = useState(INITIAL_VIEW_STATE);
-  const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_data: "" });
+  const [nuevaZona, setNuevaZona] = useState({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" });
 
   // --- 3. EFECTOS ---
   useEffect(() => {
@@ -292,11 +292,11 @@ export default function App() {
         latitude: nuevaZona.latitude,
         longitude: nuevaZona.longitude,
         radius: nuevaZona.radius,
-        zone_data: nuevaZona.zone_data // AÑADIDO: Mandamos el nombre de la zona
+        zone_type: nuevaZona.zone_type,
+        zone_name: nuevaZona.zone_name,
       });
-      setZonasSQL(prev => [...prev, { ...nuevaZona, user_id: loggedUser.user_id }]);
-      // AÑADIDO: Reseteamos zone_data
-      setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_data: "" });
+      setZonasSQL([...zonasSQL, { ...nuevaZona, user_id: TARGET_USER_ID }]);
+      setNuevaZona({ latitude: null, longitude: null, radius: 50, tag_id: "", zone_type: "aviso", zone_name: "" });
       setShowZoneModal(false);
     } catch (error) {
       console.error("Error guardando zona:", error);
@@ -311,12 +311,29 @@ export default function App() {
 
   // --- 5. CAPAS ---
   const zonasFiltradas = zonasSQL.filter(z => String(z.tag_id) === String(selectedKidTag));
+
+  const getZoneColor = (zoneType) => {
+    switch(zoneType) {
+      case 'emergencia': return [255, 0, 0, 80]; // rojo
+      case 'zona_segura': return [0, 255, 0, 80]; // verde
+      default: return [255, 165, 0, 80]; // naranja para aviso
+    }
+  };
+
+  const getZoneLineColor = (zoneType) => {
+    switch(zoneType) {
+      case 'emergencia': return [255, 0, 0, 255];
+      case 'zona_segura': return [0, 255, 0, 255];
+      default: return [255, 165, 0, 255];
+    }
+  };
+
   const mainLayers = [
     new ScatterplotLayer({
       id: 'zonas-sql', data: zonasFiltradas, pickable: true, stroked: true, filled: true,
       getPosition: d => [parseFloat(d.longitude), parseFloat(d.latitude)],
       getRadius: d => parseFloat(d.radius), radiusUnits: 'meters', 
-      getFillColor: [255, 0, 0, 80], getLineColor: [255, 0, 0, 255], getLineWidth: 2
+      getFillColor: d => getZoneColor(d.zone_type), getLineColor: d => getZoneLineColor(d.zone_type), getLineWidth: 2
     }),
     activeView === 'live' && ubicacionUsuario && new ScatterplotLayer({
       id: 'usuario-vivo', data: [ubicacionUsuario], pickable: true, stroked: true, filled: true,
@@ -490,16 +507,42 @@ export default function App() {
                 style={{ width: '100%', accentColor: '#3b82f6' }}
               />
             </div>
+            <input 
+              type="range" 
+              min="20" 
+              max="600" 
+              step="10" 
+              value={nuevaZona.radius} 
+              onChange={e => setNuevaZona({...nuevaZona, radius: Number(e.target.value)})} 
+              style={{ width: '100%', marginBottom: '20px', cursor: 'pointer' }} 
+            />
 
-            {/* SELECTOR DE NIÑO */}
-            <select
-              style={{ ...inputStyle, marginBottom: 0 }}
-              value={nuevaZona.tag_id}
-              onChange={e => setNuevaZona(prev => ({ ...prev, tag_id: e.target.value }))}
-            >
-              <option value="">Seleccionar niño...</option>
-              {kids.map(k => <option key={k.tag_id} value={k.tag_id}>{k.name}</option>)}
+            <select style={inputStyle} value={nuevaZona.tag_id} onChange={e => setNuevaZona({...nuevaZona, tag_id: e.target.value})}>
+              {kids.length === 0 ? (
+                <option value="" disabled style={{ fontStyle: 'italic' }}>No hay niños registrados</option>
+              ) : (
+                <>
+                  <option value="" disabled>Asignar a un niño...</option>
+                  {kids.map(k => (
+                    <option key={k.tag_id} value={k.tag_id}>{k.name}</option>
+                  ))}
+                </>
+              )}
             </select>
+
+            <select style={inputStyle} value={nuevaZona.zone_type} onChange={e => setNuevaZona({...nuevaZona, zone_type: e.target.value})}>
+              <option value="aviso">⚠️ Aviso</option>
+              <option value="emergencia">🚨 Emergencia</option>
+              <option value="zona_segura">✅ Zona Segura</option>
+            </select>
+
+            <input 
+              type="text" 
+              placeholder="Nombre de la zona (Ej: Parque Central)" 
+              value={nuevaZona.zone_name} 
+              onChange={e => setNuevaZona({...nuevaZona, zone_name: e.target.value})} 
+              style={inputStyle} 
+            />
 
             {/* BOTONES */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>

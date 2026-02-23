@@ -18,6 +18,13 @@ resource "google_project_iam_member" "cloud_run_pubsub_publisher" {
   member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
+# Grant Cloud SQL client role to Cloud Run SA (required for Cloud SQL Auth Proxy socket)
+resource "google_project_iam_member" "cloud_run_sql_client" {
+  project = var.gcp_project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
+}
+
 # Cloud Run service
 resource "google_cloud_run_v2_service" "api" {
   name                = var.cloud_run_service_name

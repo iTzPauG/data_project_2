@@ -131,15 +131,17 @@ resource "google_dataflow_flex_template_job" "location_pipeline" {
   parameters = {
     input_subscription         = "projects/${var.gcp_project_id}/subscriptions/${google_pubsub_subscription.incoming_location_subscription.name}"
     output_notifications_topic = "projects/${var.gcp_project_id}/topics/${var.notifications_topic_name}"
-    project_id                 = var.gcp_project_id
-    firestore_database         = var.firestore_database_name
-    firestore_collection       = var.firestore_locations_collection
-    db_host                    = google_sql_database_instance.main.public_ip_address
+    project_id                          = var.gcp_project_id
+    firestore_database                  = var.firestore_database_name
+    firestore_collection                = var.firestore_locations_collection
+    firestore_notifications_collection  = var.firestore_notifications_collection
+    db_host                             = google_sql_database_instance.main.public_ip_address
     db_name                    = var.cloudsql_db_name
     db_user                    = var.cloudsql_user
     db_pass                    = random_password.cloudsql_password.result
     bq_dataset                 = google_bigquery_dataset.bqdataset.dataset_id
     bq_table                   = google_bigquery_table.table.table_id
+    bq_notifications_table     = google_bigquery_table.notifications.table_id
     zones_sql                  = "zones"
   }
 
@@ -156,6 +158,7 @@ resource "google_dataflow_flex_template_job" "location_pipeline" {
     google_pubsub_topic.notifications,
     google_bigquery_dataset.bqdataset,
     google_bigquery_table.table,
+    google_bigquery_table.notifications,
   ]
 }
 
