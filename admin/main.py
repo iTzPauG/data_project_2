@@ -48,27 +48,27 @@ async def start_pubsub_listener():
     asyncio.create_task(_pubsub_pull_loop())
 
 
-# ── Auth ───────────────────────────────────────────────────────────────────────
+
 SECRET_KEY = os.environ.get("ADMIN_SECRET_KEY", "ADMIN_SECRET_KEY")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 60
 
-# ── Database ───────────────────────────────────────────────────────────────────
+
 DB_HOST = os.environ.get("DB_HOST", "")
 DB_USER = os.environ.get("DB_USER", "")
 DB_PASS = os.environ.get("DB_PASS", "")
 DB_NAME = os.environ.get("DB_NAME", "appdb")
 
-# ── Firestore ──────────────────────────────────────────────────────────────────
+
 FIRESTORE_DATABASE   = os.environ.get("FIRESTORE_DATABASE", "location-db")
 FIRESTORE_COLLECTION = os.environ.get("FIRESTORE_COLLECTION", "locations")
 
-# ── BigQuery ───────────────────────────────────────────────────────────────────
+
 BQ_PROJECT = os.environ.get("BQ_PROJECT", "")
 BQ_DATASET = os.environ.get("BQ_DATASET", "")
 BQ_TABLE   = os.environ.get("BQ_TABLE", "")
 
-# ── Pub/Sub ────────────────────────────────────────────────────────────────────
+
 NOTIFICATIONS_SUBSCRIPTION = os.environ.get("NOTIFICATIONS_SUBSCRIPTION", "")
 
 # Rolling buffer of the last 50 zone violations (populated by background task)
@@ -105,7 +105,7 @@ def get_db():
         conn.close()
 
 
-# ── Haversine ─────────────────────────────────────────────────────────────────
+
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Return distance in metres between two lat/lon points."""
     R = 6_371_000  # Earth radius in metres
@@ -116,7 +116,7 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * R * asin(sqrt(a))
 
 
-# ── Auth helpers ───────────────────────────────────────────────────────────────
+
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
@@ -141,9 +141,7 @@ def get_current_user(request: Request) -> Optional[str]:
     return _decode_token(token)
 
 
-# ── Stats collection (sync — called from HTTP and WebSocket) ───────────────────
 def _collect_stats() -> dict:
-    # ── Cloud SQL ──────────────────────────────────────────────────────────────
     zone_count = 0
     users_with_zones = 0
     user_count = 0
@@ -212,7 +210,6 @@ def _collect_stats() -> dict:
     except Exception as e:
         print(f"[ADMIN] Cloud SQL error: {e}")
 
-    # ── Firestore + haversine cross-check ─────────────────────────────────────
     active_24h = 0
     kids_outside_zones = 0
     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
@@ -253,8 +250,8 @@ def _collect_stats() -> dict:
     except Exception as e:
         print(f"[ADMIN] Firestore error: {e}")
 
-    # ── BigQuery ───────────────────────────────────────────────────────────────
-    events_24h = events_7d = events_30d = 0
+
+    events_today = 0
     if BQ_PROJECT and BQ_DATASET and BQ_TABLE:
         try:
             client = get_bq()
@@ -284,44 +281,7 @@ def _collect_stats() -> dict:
     }
 
 
-def _get_chart_data() -> dict:
-    now = _time.monotonic()
-    if _chart_cache["data"] is not None and now < _chart_cache["expires"]:
-        return _chart_cache["data"]
 
-    messages_per_day: list = []
-    messages_per_month: list = []
-
-    if BQ_PROJECT and BQ_DATASET and BQ_TABLE:
-        try:
-            client = get_bq()
-            day_q = f"""
-                SELECT DATE(timestamp) AS day, COUNT(*) AS cnt
-                FROM `{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}`
-                WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-                GROUP BY day ORDER BY day
-            """
-            for row in client.query(day_q).result():
-                messages_per_day.append({"date": str(row.day), "count": row.cnt})
-
-            month_q = f"""
-                SELECT FORMAT_DATE('%Y-%m', DATE(timestamp)) AS month, COUNT(*) AS cnt
-                FROM `{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}`
-                WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)
-                GROUP BY month ORDER BY month
-            """
-            for row in client.query(month_q).result():
-                messages_per_month.append({"month": row.month, "count": row.cnt})
-        except Exception as e:
-            print(f"[ADMIN] BigQuery chart error: {e}")
-
-    result = {"messages_per_day": messages_per_day, "messages_per_month": messages_per_month}
-    _chart_cache["data"] = result
-    _chart_cache["expires"] = now + 300  # cache for 5 minutes
-    return result
-
-
-# ── Pub/Sub violations pull loop (background task) ────────────────────────────
 async def _pubsub_pull_loop() -> None:
     if not NOTIFICATIONS_SUBSCRIPTION or not BQ_PROJECT:
         print("[ADMIN] Pub/Sub listener disabled (NOTIFICATIONS_SUBSCRIPTION or BQ_PROJECT not set)")
@@ -379,7 +339,7 @@ async def _pubsub_pull_loop() -> None:
         await asyncio.sleep(5)
 
 
-# ── Pages ──────────────────────────────────────────────────────────────────────
+
 @app.get("/", response_class=HTMLResponse)
 def root():
     return RedirectResponse("/admin/login")
@@ -463,7 +423,6 @@ def dashboard(request: Request):
     )
 
 
-# ── WebSocket — real-time stats ────────────────────────────────────────────────
 PUSH_INTERVAL_SECONDS = 5
 
 
@@ -491,7 +450,7 @@ async def websocket_stats(websocket: WebSocket):
         print(f"[ADMIN] WebSocket error: {e}")
 
 
-# ── HTTP stats fallback ────────────────────────────────────────────────────────
+
 @app.get("/admin/api/stats")
 def get_stats(request: Request):
     if not get_current_user(request):

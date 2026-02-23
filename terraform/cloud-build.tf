@@ -14,10 +14,6 @@ resource "google_project_service" "secretmanager" {
   disable_on_destroy = false
 }
 
-# =============================================================================
-# CLOUD BUILD SERVICE ACCOUNT PERMISSIONS
-# =============================================================================
-
 # Get Cloud Build service account
 data "google_project" "project" {
   project_id = var.gcp_project_id
@@ -58,10 +54,6 @@ resource "google_project_iam_member" "cloudbuild_storage_admin" {
   member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
 }
 
-# =============================================================================
-# GITHUB CONNECTION (Cloud Build v2 / 2nd Gen)
-# =============================================================================
-
 # GitHub connection - creates the OAuth connection to GitHub
 # After terraform apply, you need to authorize the connection once via the link in outputs
 resource "google_cloudbuildv2_connection" "github" {
@@ -90,10 +82,6 @@ resource "google_cloudbuildv2_repository" "main" {
   parent_connection = google_cloudbuildv2_connection.github.name
   remote_uri        = "https://github.com/${var.github_owner}/${var.github_repo_name}.git"
 }
-
-# =============================================================================
-# CLOUD BUILD TRIGGER (2nd Gen with repository_event_config)
-# =============================================================================
 
 # Cloud Build trigger for GitHub pushes to main branch
 resource "google_cloudbuild_trigger" "github_main" {
@@ -142,10 +130,6 @@ resource "google_cloudbuild_trigger" "github_main" {
     google_cloudbuildv2_repository.main,
   ]
 }
-
-# =============================================================================
-# API SOURCE CODE (for manual builds via Terraform)
-# =============================================================================
 
 # GCS bucket to store API source code
 resource "google_storage_bucket" "api_source" {
@@ -210,10 +194,6 @@ resource "terraform_data" "api_image_build" {
     google_project_service.cloudbuild,
   ]
 }
-
-# =============================================================================
-# FRONTEND SOURCE CODE (for manual builds via Terraform)
-# =============================================================================
 
 # Package frontend source code into a zip
 data "archive_file" "frontend_source" {
